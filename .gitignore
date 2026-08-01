@@ -1,0 +1,9 @@
+.vscode
+*.elf
+*.list
+*.map
+*.o
+*.bxrc
+
+obj\
+bin\

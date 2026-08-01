@@ -1,0 +1,11 @@
+/* driver/include/ps2.h */
+
+#ifndef DRIVER_PS2_H
+#define DRIVER_PS2_H
+
+extern void ps2_cpu_reset(void);
+extern int ps2_sc2ch(int scancode);
+extern int ps2_getchar(void);
+extern int ps2_getscancode(void);
+
+#endif
