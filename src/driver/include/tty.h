@@ -39,6 +39,6 @@ number: the number to output.
 base:   the base to output the number in.
 lower:  1 = lower case; 0 = upper case
 2 (Binary), 8 (Octal), 10 (Decimal), 16 (Hexadecimal). */
-void tty_putn(uint32_t number, int base, int lower);
+void tty_putn(uint64_t number, int base, int lower, int width, int precision, char pad, int left);
 
 #endif

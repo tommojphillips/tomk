@@ -3,12 +3,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 #include <tty.h>
 #include <vga.h>
-#include <string.h>
+#include <i86.h>
 
-#define TTY_MAX_BUFFER_SIZE 32
+#define TTY_MAX_BUFFER_SIZE 64
+
+#define max(a,b) ((a) > (b) ? (a) : (b))
 
 static size_t tty_row;           /* current row */
 static size_t tty_column;        /* current column*/
@@ -96,13 +99,9 @@ void tty_puts(const char* s) {
 	tty_putd(s, strlen(s));
 }
 
-void tty_putn(uint32_t number, int base, int lower) {
+void tty_putn(uint64_t number, int base, int lower, int width, int precision, char pad, int left) {
     size_t i = 0;
 	const char* hex_digits;
-
-	if (number == 0) {		
-		tty_putc('0');
-	}
 
 	if (lower) {
 		hex_digits = hex_digits_l;
@@ -115,12 +114,57 @@ void tty_putn(uint32_t number, int base, int lower) {
 		base = 10;
 	}
 
-    while (number && i < TTY_MAX_BUFFER_SIZE) {
-		tty_buffer[i++] = hex_digits[number % base];
-        number /= base;
-    }
+	if (number == 0) {
+		tty_buffer[i++] = '0';
+	}
+	else {
+		size_t j = number;
+		while (j && i < TTY_MAX_BUFFER_SIZE) {
+			tty_buffer[i++] = hex_digits[j % base];
+			j /= base;
+		}
+	}
 
-	while (i--) {
-		tty_putc(tty_buffer[i]);
+	int digits = (int)i;
+	int zeros = 0;
+	int spaces = 0;
+
+	if (precision == 0 && number == 0) {
+		digits = 0;
+	}
+
+	if (precision >= 0) {
+		zeros = max(precision - digits, 0);
+		spaces = max(width - digits - zeros, 0);
+	} else {
+		if (pad == '0') {
+			zeros = max(width - digits, 0);
+			spaces = 0;
+		} else {
+			spaces = max(width - digits, 0);
+			zeros = 0;
+		}
+	}
+
+	if (!left) {
+		while (spaces > 0) {
+			tty_putc(' ');
+			spaces--;
+		}
+	}
+
+	while (zeros--) {
+		tty_putc('0');
+	}
+
+	while (digits--) {
+		tty_putc(tty_buffer[digits]);
+	}
+
+	if (left) {
+		while (spaces > 0) {
+			tty_putc(' ');
+			spaces--;
+		}
 	}
 }
