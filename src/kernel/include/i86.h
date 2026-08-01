@@ -54,6 +54,33 @@ extern void outd(uint16_t port, uint32_t value);
 extern void int86(uint8_t vector, const CPU_REGS* input_regs, CPU_STATE* output_state);
 extern void setregs(CPU_REGS* regs);
 extern void getregs(CPU_REGS* regs);
-extern void getstate(CPU_STATE* state);
+
+/* Get CPU State
+ Returns pointer to CPU State */
+extern void getstate(const CPU_STATE* state);
+
+/* Get CR0
+ Returns CR0 */
+extern uint32_t getcr0();
+
+/* Set CR0
+ Returns CR0 after assignment */
+extern uint32_t setcr0(uint32_t value);
+
+/* Get CR2
+ Returns CR2 */
+extern uint32_t getcr2();
+
+/* Set CR2
+ Returns CR2 after assignment */
+extern uint32_t setcr2(uint32_t value);
+
+/* Get CR3
+ Returns CR3 */
+extern uint32_t getcr3();
+
+/* Set CR3
+ Returns CR3 after assignment */
+extern uint32_t setcr3(uint32_t value);
 
 #endif

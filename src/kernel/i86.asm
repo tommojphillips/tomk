@@ -231,7 +231,7 @@ write_int_gate:
     push ebx
     push esi
     push edi
-    
+
     xor ecx, ecx
 
     mov cl, [esp + 12+4]       ; vector
@@ -334,4 +334,31 @@ write_task_gate:
     pop edi
     pop esi
     pop ebx
+    ret
+
+setcr0:
+    mov eax, [esp+4]
+    mov cr0, eax
+    ret
+
+getcr0:
+    mov eax, cr0
+    ret
+    
+setcr2:
+    mov eax, [esp+4]
+    mov cr2, eax
+    ret
+    
+getcr2:
+    mov eax, cr2
+    ret
+    
+setcr3:
+    mov eax, [esp+4]
+    mov cr3, eax
+    ret
+    
+getcr3:
+    mov eax, cr3
     ret
