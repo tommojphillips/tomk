@@ -12,16 +12,31 @@ global paging_map_bytes
 section .text
 
 paging_init:
-    
+
+    cld
+    xor eax, eax
+
+    ; zero PD (PD_BASE, 0, 4096);
+    mov ecx, PAGE_SIZE/4
+    mov edi, PD_BASE
+    rep stosd
+
+    ; zero PT (PT_BASE, 0, 4096*1024);
+    mov ecx, (PAGE_SIZE*PD_COUNT)/4
+    mov edi, PT_BASE
+    rep stosd
+
     ; map virt:0x00000000-0x01000000 -> phys:0x00000000-0x01000000 R/W Ring0 (16Mb)
-    mov edx, PD_BASE
-    mov esi, 0
-    mov edi, 0
-    mov eax, 3
-    mov ecx, 0x1000000
+    push PD_BASE             ; pd_base   
+    push 0                   ; physical_address
+    push 0                   ; linear_address
+    push 3                   ; flags
+    push 0x1000              ; page_count
     call paging_map_pages
-    
+    add esp, 20
+
     ; load page directory address into cr3
+    mov edx, PD_BASE
     mov cr3, edx
 
     call paging_enable
@@ -54,13 +69,15 @@ paging_disable:
 ; edi = linear_address
 ; eax = flags (lower 12bits)
 paging_map_page:
-    push edx                   ; save pd_base
-    push esi                   ; save physical_address
-    push edi                   ; save linear_address
-    push eax                   ; save flags
+    push edx
+    push esi
+    push edi
+    push ebx
 
-    push eax                   ; save flags
-    push esi                   ; save physical_address
+    mov eax, [esp+16+4]
+    mov edi, [esp+16+8]
+    mov esi, [esp+16+12]
+    mov edx, [esp+16+16]
 
     ; compute pd_index
     mov ebx, edi               ; linear_address >> 22
@@ -85,27 +102,29 @@ paging_map_page:
 
     mov eax, [esi]             ; get pde
     test eax, 1                ; pde present?
-    jnz .have_pde              ; yes, dont rebuild pde
-;                              ; no, build pde
-    mov eax, edi               ; pte_address
-    or  eax, 3                 ; set present bit
+    jnz .build_pte             ; yes, skip pde
+
+.build_pde:                    ; no, build pde
+    ;mov eax, [esp+12+8]        ; get flags
+    ;and eax, 00000FBFh         ; clear upper 20bits + dirty bit
+    ;or eax, edi                ; pte_address
+    mov eax, edi               ; pte address
+    or eax, 1                  ; set present bit
     mov [esi], eax             ; set pde
 
-.have_pde:
-
-    ; build pte
-    pop esi                    ; restore physical_address
+.build_pte:                    ; build pte
+    mov esi, [esp+12+16]       ; get physical_address
     and esi, 0FFFFF000h        ; clear lower 12bits    
-    pop eax                    ; restore flags
+    mov eax, [esp+12+8]        ; get flags
     and eax, 00000FFFh         ; clear upper 20bits
-    or  eax, esi               ; set upper 12bits to physical_address
+    or eax, esi                ; set upper 12bits to physical_address
     mov [edi+edx*4], eax       ; copy pte to memory 
-    
-    pop eax                    ; restore flags
-    pop edi                    ; restore linear_address
-    pop esi                    ; restore physical_address
-    pop edx                    ; restore pd_base
 
+.done:
+    pop ebx
+    pop edi
+    pop esi
+    pop edx
     ret
 
 ; map contiguous pages
@@ -113,14 +132,40 @@ paging_map_page:
 ; esi = start physical_address
 ; edi = start linear_address
 ; eax = flags (lower 12bits)
-; ecx = end physical address (exclusive) (increments of 4096 bytes)
+; ecx = count (in 4096-byte units)
 paging_map_pages:
+    push edi
+    push esi
+    push edx
+
+    mov ecx, [esp+12+4]
+    mov eax, [esp+12+8]
+    mov edi, [esp+12+12]
+    mov esi, [esp+12+16]
+    mov edx, [esp+12+20]
+
+    test ecx, ecx
+    jz .done
+
 .nxt:
-    call map_page
+    push ecx
+    push edx
+    push esi
+    push edi
+    push eax
+    call paging_map_page
+    add esp, 16
+    pop ecx
+
     add esi, PAGE_SIZE
     add edi, PAGE_SIZE
-    cmp esi, ecx
-    jne .nxt
+    dec ecx
+    jnz .nxt
+
+.done:
+    pop edx
+    pop esi
+    pop edi
     ret
 
 ; map contiguous pages
@@ -130,11 +175,28 @@ paging_map_pages:
 ; eax = flags (lower 12bits)
 ; ecx = count (in bytes)
 paging_map_bytes:
-    test ebx, 0xFFF
-    jz .skip
-    add ecx, 0x1000
-.skip:
-    shr ecx, 12
+    push edi
+    push esi
+    push edx
 
-    call map_block
+    mov ecx, [esp+12+4]
+    mov eax, [esp+12+8]
+    mov edi, [esp+12+12]
+    mov esi, [esp+12+16]
+    mov edx, [esp+12+20]
+
+    test ecx, 0x00000FFF ; page offset?
+    jz .skip             ; yes, skip inc
+    add ecx, PAGE_SIZE   ; no, add page
+.skip:
+    shr ecx, 12          ; compute page count
+
+    push edx
+    push esi
+    push edi
+    push eax
+    push ecx
+    call paging_map_pages
+    add esp, 20
+
     ret
