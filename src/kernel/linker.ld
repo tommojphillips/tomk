@@ -2,59 +2,67 @@ OUTPUT_FORMAT(elf32-i386)
 ENTRY(kernel_entry)
 
 SECTIONS {
-    . = 0x00200000;
+    . = 0x00100000;
 
-    .first_section BLOCK(4K) : ALIGN(4K) {
-     kstart = .;
-    }
+    . = ALIGN(4K);
+    kstart = .;
+
+    . = ALIGN(4K);
+    sec_multiboot_start = .;
 
     /* Read-only data */
     .multiboot BLOCK(4K) : ALIGN(4K) {
-     kstart_multiboot = .;
      *(.multiboot)
     }
-    .multiboot_end BLOCK(4K) : ALIGN(4K) {
-     kend_multiboot = .;
-    }
+
+    . = ALIGN(4K);
+    sec_multiboot_end = .;
+
+    . = ALIGN(4K);
+    sec_text_start = .;
 
     /* Code */
     .text BLOCK(4K) : ALIGN(4K) {
-     kstart_text = .;
      *(.text)
     }
-    .text_end BLOCK(4K) : ALIGN(4K) {
-     kend_text = .;
-    }
+
+    . = ALIGN(4K);
+    sec_text_end = .;
+
+    . = ALIGN(4K);
+    sec_rodata_start = .;
 
     /* Read-only data */
     .rodata BLOCK(4K) : ALIGN(4K) {
-     kstart_rodata = .;
      *(.rodata)
     }
-    .rodata_end BLOCK(4K) : ALIGN(4K) {
-     kend_rodata = .;
-    }
+
+    . = ALIGN(4K);
+    sec_rodata_end = .;
+
+    . = ALIGN(4K);
+    sec_data_start = .;
 
     /* Read-write data (initialized) */
     .data BLOCK(4K) : ALIGN(4K) {
-     kstart_data = .;
      *(.data)
     }
-    .data_end BLOCK(4K) : ALIGN(4K) {
-     kend_data = .;
-    }
+
+    . = ALIGN(4K);
+    sec_data_end = .;
+
+    . = ALIGN(4K);
+    sec_bss_start = .;
 
     /* Read-write data (uninitialized) */
     .bss (NOLOAD) : ALIGN(4K) {
-     kstart_bss = .;
      *(COMMON)
      *(.bss)
     }
-    .bss_end (NOLOAD) : ALIGN(4K) {
-     kend_bss = .;
-    }
 
-    .last_section (NOLOAD) : ALIGN(4K) {
-     kend = .;
-    }
+    . = ALIGN(4K);
+    sec_bss_end = .;
+
+    . = ALIGN(4K);
+    kend = .;
 }
