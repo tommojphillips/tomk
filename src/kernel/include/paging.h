@@ -1,31 +1,42 @@
-/* kernel/include/paging.h */
+/* paging.h */
 
 #ifndef PAGING_H
 #define PAGING_H
 
 #include <stdint.h>
 
-/* Map single page (4096 bytes)
-pd_base:              page directory address.
-phyiscal_address:     physical address.
-linear_address:       linear address.
-flags:                page flags. */
-extern void paging_map_page(uint32_t pd_base, uint32_t physical_address, uint32_t linear_address, uint32_t flags);
+#define PAGE_SIZE     4096
+#define PD_ENTRY_SIZE 4
+#define PD_ENTRIES    1024
+#define PD_SIZE       (PD_ENTRY_SIZE * PD_ENTRIES)
+#define PT_ENTRIES    1024
+#define PT_SIZE       (PAGE_SIZE * PT_ENTRIES)
+
+#define PTE_NP 0x00 /* Not Present */
+#define PTE_P  0x01 /* Present */
+#define PTE_RW 0x02 /* Read-Only/Read-Write*/
+#define PTE_US 0x04 /* User/Super */
+#define PTE_A  0x20 /* Accessed bit */
+#define PTE_D  0x40 /* Dirty bit */
 
 /* Map contiguous pages
-pd_base:              page directory address.
-phyiscal_address:     physical start address.
-linear_address:       linear start address.
-flags:                page flags.
-end_physical_address: physical end address. (exclusive) (increments of 4096 bytes) */
-extern void paging_map_pages(uint32_t pd_base, uint32_t physical_address, uint32_t linear_address, uint32_t flags, uint32_t end_physical_address);
+pd_base:              page directory address
+linear_address:       linear start address
+phyiscal_address:     physical start address
+flags:                page flags
+count:                page count */
+extern void paging_map(uint32_t pd_base, uint32_t linear_address, uint32_t physical_address, uint32_t flags, uint32_t count);
 
-/* Map contiguous pages
-pd_base:              page directory address.
-phyiscal_address:     physical start address.
-linear_address:       linear start address.
-flags:                page flags.
-count:                count in bytes */
-extern void paging_map_bytes(uint32_t pd_base, uint32_t physical_address, uint32_t linear_address, uint32_t flags, uint32_t count);
+/* Flush TLB 
+Returns CR3 */
+extern uint32_t paging_flush(void);
+
+/* Enable paging 
+Returns CR3 */
+extern uint32_t paging_enable(void);
+
+/* Disable paging 
+Returns CR3 */
+extern uint32_t paging_disable(void);
 
 #endif
