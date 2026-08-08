@@ -10,6 +10,7 @@ global KTSS
 global UCODE
 global UDATA
 global USTACK
+global gdt
 
 KCODE   equ gdt_kcode  - gdt_start       ; kernel code segment
 KDATA   equ gdt_kdata  - gdt_start       ; kernel data segment
@@ -20,9 +21,10 @@ UCODE   equ (gdt_ucode  - gdt_start) | 3 ; user code segment
 UDATA   equ (gdt_udata  - gdt_start) | 3 ; user data segment
 USTACK  equ (gdt_ustack - gdt_start) | 3 ; user stack segment
 
-section .rodata
+Section .data
 
 align 8, db 0
+gdt:
 gdt_start:
 
 gdt_null:                          ; NULL
@@ -87,43 +89,15 @@ gdt_tss:                           ; TSS - dummy; patched in tss.asm
 gdt_end:
 
 gdt_descriptor:
-    dw gdt_end - gdt_start - 1 ; gdt limit - 1
-    dd gdt_start               ; gdt base
+    dw gdt_end - gdt_start - 1     ; gdt limit - 1
+    dd gdt_start                   ; gdt base
 
-section .text
+Section .text
 
 gdt_init:
-    push ebx
-    push edx
-    push esi
-    push edi
-
-    mov ebx, [esp+16+4]          ; new gdt base
-
-    ; create copy of gdt in ram
-    lea eax, [gdt_descriptor]
-    xor ecx, ecx
-    mov cx, [eax+0]              ; gdt len-1
-    mov esi, [eax+2]             ; old gdt base
-    mov edi, ebx                 ; new gdt base
-    rep movsb
-
-    ; write gdt descriptor
-    xor ecx, ecx
-    mov cx, [eax+0]              ; gdt len-1
-    mov edi, ebx                 ; new gdt base
-    add edi, ecx                 ; base+len
-    inc edi
-    mov [edi+0], cx
-    mov dword [edi+2], ebx
     
-    lgdt [edi]
+    lgdt [gdt_descriptor]
     
-    pop edi
-    pop esi
-    pop edx
-    pop ebx
-
     ; Reload es/ds/fs/gs
     mov ax, KDATA
     mov ds, ax

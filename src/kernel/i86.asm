@@ -3,7 +3,7 @@
 BITS 32
 
 extern idt
-extern gdt_base
+extern gdt
 
 global setregs
 global getregs
@@ -280,7 +280,7 @@ write_tss_gate:
     mov esi, [esp + 12+8]      ; limit
     mov ebx, [esp + 12+12]     ; ar byte
     mov eax, [esp + 12+16]     ; base
-    mov edi, [gdt_base]        ; gdt base
+    mov edi, gdt               ; gdt base
     mov edx, esi
     
     and ecx, 0xFFF8            ; selector & 0xFFF8
