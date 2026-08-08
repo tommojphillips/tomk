@@ -233,12 +233,11 @@ write_int_gate:
     push edi
 
     xor ecx, ecx
-
     mov cl, [esp + 12+4]       ; vector
     mov esi, [esp + 12+8]      ; offset
     mov bl, [esp + 12+12]      ; ar byte
     mov ax, [esp + 12+16]      ; selector
-    mov edi, IDT_BASE          ; idt base
+    mov edi, [idt_base]        ; idt base
 
     mov [edi+ecx*8+0], si      ; offset lower 16bit
     mov [edi+ecx*8+2], ax      ; selector
