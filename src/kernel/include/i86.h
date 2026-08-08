@@ -5,7 +5,11 @@
 
 #include <stdint.h>
 
-typedef struct CPU_REGS {
+#define TSS_SIZE 0x1000
+#define IDT_SIZE 0x1000
+#define GDT_SIZE 0x1000
+
+typedef struct cpu_regs_t {
     uint32_t eax;
     uint32_t ecx;
     uint32_t edx;
@@ -14,9 +18,9 @@ typedef struct CPU_REGS {
     uint32_t ebp;
     uint32_t esi;
     uint32_t edi;
-} CPU_REGS;
+} cpu_regs_t;
 
-typedef struct CPU_STATE {
+typedef struct cpu_state_t {
     uint32_t cr0;
     uint32_t cr2;
     uint32_t cr3;
@@ -41,7 +45,7 @@ typedef struct CPU_STATE {
     uint32_t int_eip;
     uint32_t int_cs;
     uint32_t int_eflags;
-} CPU_STATE;
+} cpu_state_t;
 
 extern uint8_t inb(uint16_t port);
 extern uint16_t inw(uint16_t port);
@@ -51,13 +55,13 @@ extern void outb(uint16_t port, uint8_t value);
 extern void outw(uint16_t port, uint16_t value);
 extern void outd(uint16_t port, uint32_t value);
 
-extern void int86(uint8_t vector, const CPU_REGS* input_regs, CPU_STATE* output_state);
-extern void setregs(CPU_REGS* regs);
-extern void getregs(CPU_REGS* regs);
+extern void int86(uint8_t vector, const cpu_regs_t* input_regs, cpu_state_t* output_state);
+extern void setregs(cpu_regs_t* regs);
+extern void getregs(cpu_regs_t* regs);
 
 /* Get CPU State
  Returns pointer to CPU State */
-extern void getstate(const CPU_STATE* state);
+extern void getstate(const cpu_state_t* state);
 
 /* Get CR0
  Returns CR0 */

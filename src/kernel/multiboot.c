@@ -8,11 +8,11 @@
 #include <kmmap.h>
 #include <kernel.h>
 
-extern MULTIBOOT_INFO* multiboot_info_ptr; /* entry.asm */
+extern multiboot_info_t* multiboot_info_ptr; /* entry.asm */
 
-void mb_init(KMMAP* kmmap, uint32_t* out_memory_total) {
+void mb_init(kmmap_t* kmmap, uint32_t* out_memory_total) {
 	if (multiboot_info_ptr->flags & MULTIBOOT_FLAGS_MMAP) {
-		MULTIBOOT_MMAP* mmap = (MULTIBOOT_MMAP*)multiboot_info_ptr->mmap_addr;
+		multiboot_mmap_t* mmap = (multiboot_mmap_t*)multiboot_info_ptr->mmap_addr;
 		uint32_t memory_total = 0;
 		
 		while ((uintptr_t)mmap < multiboot_info_ptr->mmap_addr + multiboot_info_ptr->mmap_length) {
@@ -27,7 +27,7 @@ void mb_init(KMMAP* kmmap, uint32_t* out_memory_total) {
 				kmmap_add(kmmap, (uint32_t)addr, (uint32_t)len, KMREGION_FLAG_AR_REV);
 			}
 			
-			mmap = (MULTIBOOT_MMAP*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
+			mmap = (multiboot_mmap_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
 		}
 		
 		if (out_memory_total) {

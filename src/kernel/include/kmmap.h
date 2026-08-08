@@ -17,20 +17,20 @@
 #define KMREGION_FLAG_US_SUPER 0x0
 #define KMREGION_FLAG_US_USER  0x8
 
-typedef struct KMREGION {
+typedef struct kmregion_t {
 	uint32_t address;
 	uint32_t size;
 	uint32_t flags;
-} KMREGION;
+} kmregion_t;
 
-typedef struct KMMAP {
+typedef struct kmmap_t {
 	size_t count;
 	size_t capacity;
-	KMREGION* regions;
-} KMMAP;
+	kmregion_t* regions;
+} kmmap_t;
 
-void kmmap_init(KMMAP** kmmap, size_t size);
-void kmmap_add(KMMAP* kmmap, uint32_t address, uint32_t size, uint32_t flags);
-void kmmap_remove(KMMAP* kmmap, uint32_t address);
+void kmmap_init(kmmap_t** kmmap, size_t size);
+void kmmap_add(kmmap_t* kmmap, uint32_t address, uint32_t size, uint32_t flags);
+void kmmap_remove(kmmap_t* kmmap, uint32_t address);
 
 #endif

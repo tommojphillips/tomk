@@ -8,13 +8,13 @@
 #include <kalloc.h>
 #include <kmmap.h>
 
-void kmmap_init(KMMAP** kmmap, size_t size) {
+void kmmap_init(kmmap_t** kmmap, size_t size) {
 	*kmmap = kalloc(size);
 	(*kmmap)->count = 0;
-	(*kmmap)->capacity = (size - sizeof(KMMAP)) / sizeof(KMREGION);
-	(*kmmap)->regions = (KMREGION*)((char*)*kmmap + sizeof(KMMAP));
+	(*kmmap)->capacity = (size - sizeof(kmmap_t)) / sizeof(kmregion_t);
+	(*kmmap)->regions = (kmregion_t*)((char*)*kmmap + sizeof(kmmap_t));
 }
-void kmmap_add(KMMAP* kmmap, uint32_t address, uint32_t size, uint32_t flags) {
+void kmmap_add(kmmap_t* kmmap, uint32_t address, uint32_t size, uint32_t flags) {
 	if (kmmap->capacity < kmmap->count) {
 		printf("ERROR: kmmap at capacity\n");
 		kernel_hang();
@@ -24,7 +24,7 @@ void kmmap_add(KMMAP* kmmap, uint32_t address, uint32_t size, uint32_t flags) {
 	kmmap->regions[kmmap->count].flags = flags | KMREGION_FLAG_VALID;
 	kmmap->count++;
 }
-void kmmap_remove(KMMAP* kmmap, uint32_t address) {
+void kmmap_remove(kmmap_t* kmmap, uint32_t address) {
 	for (size_t i = 0; i < kmmap->count; ++i) {
 		if (kmmap->regions[i].address == address) {			
 			kmmap->regions[i].address = 0;

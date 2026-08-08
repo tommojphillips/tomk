@@ -58,7 +58,7 @@ and all other values currently indicated a reserved area. The map provided is gu
 standard RAM that should be available for normal use. */
 #define MULTIBOOT_FLAGS_MMAP           0x00000040
 
-typedef struct MULTIBOOT_INFO {
+typedef struct multiboot_info_t {
     uint32_t flags;
     uint32_t mem_lower;              /* in kb. Lower memory starts at address 0 */
     uint32_t mem_upper;              /* in kb. Upper memory starts at address 1 megabyte */
@@ -90,7 +90,7 @@ typedef struct MULTIBOOT_INFO {
     uint32_t framebuffer_bpp;
     uint32_t framebuffer_type;
     uint32_t color_info;
-} MULTIBOOT_INFO;
+} multiboot_info_t;
 
 #define MULTIBOOT_MMAP_TYPE_NONE     0
 #define MULTIBOOT_MMAP_TYPE_RAM      1
@@ -100,16 +100,16 @@ typedef struct MULTIBOOT_INFO {
 #define MULTIBOOT_MMAP_TYPE_BADRAM   5
 #define MULTIBOOT_MMAP_TYPE_COUNT    6
 
-typedef struct MULTIBOOT_MMAP {
+typedef struct multiboot_mmap_t {
 	uint32_t size;  /* Size of the entry excluding this field (normally 20) */
     uint32_t addr1; /* Physical start address */
     uint32_t addr2; /* Physical start address */
     uint32_t len1;  /* Length in bytes */
     uint32_t len2;  /* Length in bytes */
     uint32_t type;  /* 1 = available RAM */
-} MULTIBOOT_MMAP;
+} multiboot_mmap_t;
 
-typedef struct KMMAP KMMAP;
-void mb_init(KMMAP* kmmap, uint32_t* out_memory_total);
+typedef struct kmmap_t kmmap_t;
+void mb_init(kmmap_t* kmmap, uint32_t* out_memory_total);
 
 #endif
