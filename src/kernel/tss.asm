@@ -8,13 +8,16 @@ global tss_init
 
 %include "src\kernel\include\common.inc"
 
-section .text
+Section .bss
+    align 8, db 0
+    tss resb 104
+
+Section .text
 
 tss_init:
-    mov eax, [esp+4]        ; tss_base
-    
+
     ; Write TSS0
-    push eax                ; base
+    push tss                ; base
     push 10001001b          ; access P=1 DPL=00 S=0 TYPE=1001 (386 Available TSS)
     push 0x68               ; limit
     push KTSS               ; selector 
