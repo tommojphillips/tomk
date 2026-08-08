@@ -2,7 +2,7 @@
 
 BITS 32
 
-extern idt_base
+extern idt
 extern gdt_base
 
 global setregs
@@ -244,7 +244,7 @@ write_int_gate:
     mov esi, [esp + 12+8]      ; offset
     mov bl, [esp + 12+12]      ; ar byte
     mov ax, [esp + 12+16]      ; selector
-    mov edi, [idt_base]        ; idt base
+    mov edi, idt               ; idt base
 
     mov [edi+ecx*8+0], si      ; offset lower 16bit
     mov [edi+ecx*8+2], ax      ; selector

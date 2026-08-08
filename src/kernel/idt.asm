@@ -19,8 +19,7 @@ extern write_int_gate  ; idt.asm
 extern kernel_hang     ; entry.asm
 
 global idt_init
-global idt_desc_limit
-global idt_desc_base
+global idt
 
 %include "src\kernel\include\common.inc"
 
@@ -38,18 +37,17 @@ vec_ss      equ 0x0C ; Stack-segment exception
 vec_gp      equ 0x0D ; General-protection exception
 vec_pf      equ 0x0E ; Page-fault exception
 
-section .data
+Section .bss
+    idt resb 8*128
 
+Section .data
 idt_descriptor:
-    idt_desc_limit dw 0x3FF ; limit
-    idt_desc_base  dd 0     ; base
+    dw 0x3FF ; limit
+    dd idt   ; base
 
-section .text
+Section .text
 
 idt_init:
-
-    mov eax, [esp+4]
-    mov [idt_desc_base], eax
 
     lidt [idt_descriptor]
 
