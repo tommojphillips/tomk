@@ -10,8 +10,7 @@ global outw
 global ind
 global outd
 global write_int_gate
-
-%include "src\kernel\include\common.inc"
+global write_tss_gate
 
 struc REGS
     .edi    resd 1
@@ -280,27 +279,36 @@ write_call_gate:
     ret
       
 ; Write tss gate
-; offset
 ; selector
-; ar byte
-; index
+; limit
+; ar
+; base
 write_tss_gate:
     push ebx
     push esi
     push edi
 
-    mov cl, [esp + 12+4]       ; index
-    mov esi, [esp + 12+8]      ; offset
-    mov bl, [esp + 12+12]      ; ar byte
-    mov ax, [esp + 12+16]      ; selector
-    mov edi, GDT_BASE          ; gdt base
-
-    mov [edi+ecx*8+0], si      ; offset lower 16bit
-    mov [edi+ecx*8+2], ax      ; selector
-    mov byte [edi+ecx*8+4], 0
-    mov [edi+ecx*8+5], bl      ; ar
+    mov ecx, [esp + 12+4]      ; selector
+    mov esi, [esp + 12+8]      ; limit
+    mov ebx, [esp + 12+12]     ; ar byte
+    mov eax, [esp + 12+16]     ; base
+    mov edi, [gdt_base]        ; gdt base
+    mov edx, esi
+    
+    and ecx, 0xFFF8            ; selector & 0xFFF8
+    
+    mov [edi+ecx*1+0], si      ; limit lower 16bit
+    mov [edi+ecx*1+2], ax      ; base lower 16bit
+    shr eax, 16
+    mov byte [edi+ecx*1+4], al ; base upper 8bit
+    mov [edi+ecx*1+5], bl      ; ar byte
     shr esi, 16
-    mov [edi+ecx*8+6], si      ; offset upper 16bit
+    and si, 0xF
+    shr bx, 8
+    and bl, 0xF0
+    or bx, si
+    mov [edi+ecx*1+6], bl      ; ar; limit 19:16
+    mov byte [edi+ecx*1+7], ah ; base upper 8bit
 
     pop edi
     pop esi
