@@ -77,36 +77,46 @@ gdt_descriptor:
 section .text
 
 gdt_init:
+    push ebx
+    push edx
+    push esi
+    push edi
+
+    mov ebx, [esp+16+4]          ; new gdt base
+
     ; create copy of gdt in ram
     lea eax, [gdt_descriptor]
     xor ecx, ecx
     mov cx, [eax+0]              ; gdt len-1
     mov esi, [eax+2]             ; old gdt base
-    mov edi, GDT_BASE            ; new gdt base
+    mov edi, ebx                 ; new gdt base
     rep movsb
 
     ; write gdt descriptor
     xor ecx, ecx
     mov cx, [eax+0]              ; gdt len-1
-    mov edi, GDT_BASE            ; new gdt base
+    mov edi, ebx                 ; new gdt base
     add edi, ecx                 ; base+len
     inc edi
     mov [edi+0], cx
-    mov dword [edi+2], GDT_BASE
+    mov dword [edi+2], ebx
     
     lgdt [edi]
     
-    ; Reload data sregs
-    mov ax, 0x10
+    pop edi
+    pop esi
+    pop edx
+    pop ebx
+
+    ; Reload es/ds/fs/gs
+    mov ax, KDATA
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
 
-    ; Reload stack sreg
-    mov ebx, [esp]
-    mov ax, 0x18
+    ; Reload ss
+    mov ax, KSTACK
     mov ss, ax
-    mov esp, 0x00910000
 
-    jmp ebx ; ret
+    ret

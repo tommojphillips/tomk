@@ -35,15 +35,19 @@ vec_ss      equ 0x0C ; Stack-segment exception
 vec_gp      equ 0x0D ; General-protection exception
 vec_pf      equ 0x0E ; Page-fault exception
 
-section .rodata
+section .data
 
 idt_descriptor:
-    dw 0x3FF      ; limit
-    dd IDT_BASE   ; base
+    idt_desc_limit dw 0x3FF ; limit
+    idt_desc_base  dd 0     ; base
 
 section .text
 
 idt_init:
+
+    mov eax, [esp+4]
+    mov [idt_desc_base], eax
+
     lidt [idt_descriptor]
 
     push KCODE                         ; selector
@@ -163,14 +167,14 @@ exc_handler:
     xchg eax, [esp+0]                   ; xchg cr0 and eax
 
     test edi, edi                      ; NULL?
-    jz exc_handler_skip                ; yes. skip
+    jz .skip                           ; yes. skip
 ;                                      ; no, call ROUTINE
-
+    
     push esp
     call edi
     add esp, 4
 
-exc_handler_skip:
+.skip:
     add esp, 18*4                      ; pop STATE
 
     call kernel_hang

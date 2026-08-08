@@ -9,38 +9,39 @@ global paging_map_bytes
 
 %include "src\kernel\include\common.inc"
 
+P          equ 0x01            ; 0 = NP; 1 = Present
+RW         equ 0x02            ; 0 = RO; 1 = RW
+US         equ 0x04            ; 0 = Super; 1 = User
+A          equ 0x20            ; 0 = not accessed; 1 = accessed
+D          equ 0x40            ; 0 = not dirty; 1 = dirty
+
+PAGE_SIZE  equ 0x1000          ; Page table size
+PD_SIZE    equ PAGE_SIZE
+PD_COUNT   equ 0x0400          ; Page directory count
+
 section .text
 
 paging_init:
+    push edx
+    push edi
 
-    cld
+    mov edx, [esp+8+4]         ; pd_base
+    
+    cld                        ; zero PD (PD_BASE, 0, 4096);
     xor eax, eax
-
-    ; zero PD (PD_BASE, 0, 4096);
     mov ecx, PAGE_SIZE/4
-    mov edi, PD_BASE
+    mov edi, edx
+    rep stosd
+    
+    mov ecx, (PAGE_SIZE*PD_COUNT)/4 ; zero PT (PT_BASE, 0, 4096*1024);
+    mov edi, edx
+    add edi, PAGE_SIZE
     rep stosd
 
-    ; zero PT (PT_BASE, 0, 4096*1024);
-    mov ecx, (PAGE_SIZE*PD_COUNT)/4
-    mov edi, PT_BASE
-    rep stosd
+    mov cr3, edx               ; load page directory address into cr3    
 
-    ; map virt:0x00000000-0x01000000 -> phys:0x00000000-0x01000000 R/W Ring0 (16Mb)
-    push PD_BASE             ; pd_base   
-    push 0                   ; physical_address
-    push 0                   ; linear_address
-    push 3                   ; flags
-    push 0x1000              ; page_count
-    call paging_map_pages
-    add esp, 20
-
-    ; load page directory address into cr3
-    mov edx, PD_BASE
-    mov cr3, edx
-
-    call paging_enable
-
+    pop edi
+    pop edx
     ret
 
 ; Enable paging
