@@ -11,6 +11,7 @@ global ps2_init
 global ps2_poll
 global ps2_getchar
 global ps2_sc2ch
+global ps2_cpu_reset
 
 %include "src\kernel\include\common.inc"
 
@@ -95,14 +96,12 @@ ps2_int_handler:
 
 ; Reset CPU
 ps2_cpu_reset:
-.lp:
-    in   al, 0x64       
-    test al, 00000010b  ; input buffer empty?
-    jnz  .lp            ; no, wait
-
+    cli
     mov  al, 0xFE       ; yes, reset cpu.
     out  0x64, al
-    ret
+
+    .lp:
+    jmp .lp             ; spin
 
 ; Convert SCANCODE to CHARACTER
 ; scancode
