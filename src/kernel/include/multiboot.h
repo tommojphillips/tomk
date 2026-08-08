@@ -109,4 +109,7 @@ typedef struct MULTIBOOT_MMAP {
     uint32_t type;  /* 1 = available RAM */
 } MULTIBOOT_MMAP;
 
+typedef struct KMMAP KMMAP;
+void mb_init(KMMAP* kmmap, uint32_t* out_memory_total);
+
 #endif
