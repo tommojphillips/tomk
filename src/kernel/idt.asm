@@ -17,9 +17,10 @@ extern exception_gp    ; interrupts.c
 extern exception_pf    ; interrupts.c
 extern write_int_gate  ; idt.asm
 extern kernel_hang     ; entry.asm
-extern puts
 
 global idt_init
+global idt_desc_limit
+global idt_desc_base
 
 %include "src\kernel\include\common.inc"
 
