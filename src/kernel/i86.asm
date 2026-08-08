@@ -256,26 +256,6 @@ write_int_gate:
 ; ar byte
 ; index
 write_call_gate:
-    push ebx
-    push esi
-    push edi
-
-    mov cl, [esp + 12+4]       ; index
-    mov esi, [esp + 12+8]      ; offset
-    mov bl, [esp + 12+12]      ; ar byte
-    mov ax, [esp + 12+16]      ; selector
-    mov edi, GDT_BASE          ; gdt base
-
-    mov [edi+ecx*8+0], si      ; offset lower 16bit
-    mov [edi+ecx*8+2], ax      ; selector
-    mov byte [edi+ecx*8+4], 0
-    mov [edi+ecx*8+5], bl      ; ar
-    shr esi, 16
-    mov [edi+ecx*8+6], si      ; offset upper 16bit
-
-    pop edi
-    pop esi
-    pop ebx
     ret
       
 ; Write tss gate
@@ -318,29 +298,9 @@ write_tss_gate:
 ; Write task gate
 ; offset
 ; selector
-; ar byte
+; ar
 ; index
 write_task_gate:
-    push ebx
-    push esi
-    push edi
-
-    mov cl, [esp + 12+4]       ; index
-    mov esi, [esp + 12+8]      ; offset
-    mov bl, [esp + 12+12]      ; ar byte
-    mov ax, [esp + 12+16]      ; selector
-    mov edi, GDT_BASE          ; gdt base
-
-    mov [edi+ecx*8+0], si      ; offset lower 16bit
-    mov [edi+ecx*8+2], ax      ; selector
-    mov byte [edi+ecx*8+4], 0
-    mov [edi+ecx*8+5], bl      ; ar
-    shr esi, 16
-    mov [edi+ecx*8+6], si      ; offset upper 16bit
-
-    pop edi
-    pop esi
-    pop ebx
     ret
 
 setcr0:
