@@ -1,12 +1,12 @@
+/* kmmap.c */
 
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
 
+#include <kernel.h>
 #include <kalloc.h>
 #include <kmmap.h>
-
-extern void kernel_hang(void);     /* entry.asm */
 
 void kmmap_init(KMMAP** kmmap, size_t size) {
 	*kmmap = kalloc(size);

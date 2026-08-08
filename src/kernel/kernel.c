@@ -4,6 +4,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <kernel.h>
 #include <i86.h>
 #include <ps2.h>
 #include <multiboot.h>

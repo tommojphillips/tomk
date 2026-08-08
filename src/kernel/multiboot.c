@@ -5,8 +5,8 @@
 
 #include <multiboot.h>
 #include <kmmap.h>
+#include <kernel.h>
 
-extern void kernel_hang(void);             /* entry.asm */
 extern MULTIBOOT_INFO* multiboot_info_ptr; /* entry.asm */
 
 void mb_init(KMMAP* kmmap, uint32_t* out_memory_total) {
