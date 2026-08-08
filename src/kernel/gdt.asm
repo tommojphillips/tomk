@@ -1,8 +1,24 @@
+; gdt.asm 
+
 BITS 32
 
 global gdt_init
+global KCODE
+global KDATA
+global KSTACK
+global KTSS
+global UCODE
+global UDATA
+global USTACK
 
-%include "src\kernel\include\common.inc"
+KCODE   equ gdt_kcode  - gdt_start       ; kernel code segment
+KDATA   equ gdt_kdata  - gdt_start       ; kernel data segment
+KSTACK  equ gdt_kstack - gdt_start       ; kernel stack segment
+KTSS    equ gdt_tss    - gdt_start       ; Kernel tss segment
+
+UCODE   equ (gdt_ucode  - gdt_start) | 3 ; user code segment
+UDATA   equ (gdt_udata  - gdt_start) | 3 ; user data segment
+USTACK  equ (gdt_ustack - gdt_start) | 3 ; user stack segment
 
 section .rodata
 
@@ -12,7 +28,7 @@ gdt_start:
 gdt_null:                          ; NULL
     dq 0
 
-gdt_kernel_code:                   ; CODE 0x00000000-0xFFFFFFFF
+gdt_kcode:                         ; CODE 0x00000000-0xFFFFFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
@@ -20,7 +36,7 @@ gdt_kernel_code:                   ; CODE 0x00000000-0xFFFFFFFF
     db 11001111b                   ; gran=4k, 32-bit, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_kernel_data:                   ; DATA 0x00000000-0xFFFFFFFF
+gdt_kdata:                         ; DATA 0x00000000-0xFFFFFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
@@ -28,7 +44,7 @@ gdt_kernel_data:                   ; DATA 0x00000000-0xFFFFFFFF
     db 10001111b                   ; gran=4k, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_kernel_stack:                  ; STACK 0x00900000-0x009FFFFF
+gdt_kstack:                        ; STACK 0x00900000-0x009FFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
@@ -36,7 +52,7 @@ gdt_kernel_stack:                  ; STACK 0x00900000-0x009FFFFF
     db 11001111b                   ; gran=4k, big=1, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_user_code:                     ; CODE 0x00000000-0xFFFFFFFF
+gdt_ucode:                         ; CODE 0x00000000-0xFFFFFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
@@ -44,7 +60,7 @@ gdt_user_code:                     ; CODE 0x00000000-0xFFFFFFFF
     db 11001111b                   ; gran=4k, 32-bit, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_user_data:                     ; DATA 0x00000000-0xFFFFFFFF
+gdt_udata:                         ; DATA 0x00000000-0xFFFFFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
@@ -52,7 +68,7 @@ gdt_user_data:                     ; DATA 0x00000000-0xFFFFFFFF
     db 10001111b                   ; gran=4k, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_user_stack:                    ; STACK 0x00900000-0x009FFFFF
+gdt_ustack:                        ; STACK 0x00900000-0x009FFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
@@ -60,12 +76,12 @@ gdt_user_stack:                    ; STACK 0x00900000-0x009FFFFF
     db 11001111b                   ; gran=4k, big=1, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_tss0:                          ; TSS0 0x00600000-0x00600068
-    dw 0x0068                      ; limit 15:0
+gdt_tss:                           ; TSS - dummy; patched in tss.asm
+    dw 0x0000                      ; limit 15:0
     dw 0x0000                      ; base 15:0
-    db 0x60                        ; base 23:16
-    db 10001001b                   ; P=1 DPL=00 S=0 Type=1001 (386 Available TSS)
-    db 0x00                        ; limit 19:16
+    db 0x00                        ; base 23:16
+    db 00000000b                   ; P=1 DPL=00 S=0 Type=1001 (386 Available TSS)
+    db 00000000b                   ; gran=0, big=0, limit 19:16
     db 0x00                        ; base 31:24
   
 gdt_end:
