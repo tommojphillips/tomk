@@ -1,3 +1,5 @@
+; idt.asm
+
 BITS 32
 
 extern exception_dbz   ; interrupts.c

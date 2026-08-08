@@ -1,4 +1,4 @@
-/* kernel/include/multiboot.h */
+/* multiboot.h */
 
 #ifndef MULTIBOOT_H
 #define MULTIBOOT_H
