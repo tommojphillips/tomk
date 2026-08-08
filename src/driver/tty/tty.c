@@ -1,4 +1,4 @@
-/* driver/tty.c */
+/* tty.c */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -25,11 +25,20 @@ static const char* hex_digits_l = "0123456789abcdef";
 void move_cursor(size_t x, size_t y) {
     size_t pos = (y * VGA_WIDTH) + x;
 
-    outb(0x3D4, 0x0F);
-    outb(0x3D5, pos & 0xFF);
+    outb(0x3D4, 0x0F);              /* select register */
+    outb(0x3D5, pos & 0xFF);        /* low byte */
 
-    outb(0x3D4, 0x0E);
-    outb(0x3D5, (pos >> 8) & 0xFF);
+    outb(0x3D4, 0x0E);              /* select register */
+    outb(0x3D5, (pos >> 8) & 0xFF); /* high byte */
+}
+void scroll(size_t x, size_t y) {
+    size_t pos = (y * VGA_WIDTH) + x;
+
+    outb(0x3D4, 0x0D);              /* select register */
+    outb(0x3D5, pos & 0xFF);        /* low byte */
+
+    outb(0x3D4, 0x0C);              /* select register */
+    outb(0x3D5, (pos >> 8) & 0xFF); /* high byte */
 }
 
 void tty_init(void) {
@@ -51,13 +60,13 @@ void tty_clear_screen(void) {
 	}
 }
 
-void tty_set_position(size_t row, size_t column) {
-	tty_row = row;
+void tty_set_position(size_t x, size_t y) {
+	tty_row = y;
 	if (tty_row > VGA_HEIGHT) {
 		tty_row = VGA_HEIGHT;
 	}
 
-	tty_column = column;
+	tty_column = x;
 	if (tty_column > VGA_WIDTH) {
 		tty_column = VGA_WIDTH;
 	}
@@ -76,14 +85,25 @@ void tty_put_entry_at(char c, uint8_t color, size_t x, size_t y) {
 void tty_putc(char c) {
 	bool r = (c == '\r' || c == '\n' || c == '\t' || c == '\b');
 	
+
 	if (!r) {
 		tty_put_entry_at(c, tty_color, tty_column, tty_row);
 	}
 	
-	if (++tty_column == VGA_WIDTH || c == '\n') {
+	if (c == '\n' && tty_column < VGA_WIDTH) {
+		for (int i = tty_column; i < VGA_WIDTH; ++i) {
+			tty_put_entry_at(' ', tty_color, i, tty_row);
+		}
+
 		tty_column = 0;
-		if (++tty_row == VGA_HEIGHT) {
-			tty_row = 0;
+		if (++tty_row >= VGA_HEIGHT) {
+			scroll(tty_column, tty_row-VGA_HEIGHT+1);
+		}
+	}
+	else if (++tty_column >= VGA_WIDTH || c == '\n') {
+		tty_column = 0;
+		if (++tty_row >= VGA_HEIGHT) {
+			scroll(tty_column, tty_row-VGA_HEIGHT+1);
 		}
 	}
 	move_cursor(tty_column, tty_row);
@@ -99,8 +119,9 @@ void tty_puts(const char* s) {
 	tty_putd(s, strlen(s));
 }
 
-void tty_putn(uint64_t number, int base, int lower, int width, int precision, char pad, int left) {
+int tty_putn(uint64_t number, int base, int lower, int width, int precision, char pad, int left) {
     size_t i = 0;
+	int count = 0;
 	const char* hex_digits;
 
 	if (lower) {
@@ -150,21 +171,26 @@ void tty_putn(uint64_t number, int base, int lower, int width, int precision, ch
 		while (spaces > 0) {
 			tty_putc(' ');
 			spaces--;
+			count++;
 		}
 	}
 
 	while (zeros--) {
 		tty_putc('0');
+		count++;
 	}
 
 	while (digits--) {
 		tty_putc(tty_buffer[digits]);
+		count++;
 	}
 
 	if (left) {
 		while (spaces > 0) {
 			tty_putc(' ');
+			count++;
 			spaces--;
 		}
 	}
+	return count;
 }
