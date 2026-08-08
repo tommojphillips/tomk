@@ -1,4 +1,9 @@
+; i86.asm
+
 BITS 32
+
+extern idt_base
+extern gdt_base
 
 global setregs
 global getregs
@@ -11,6 +16,9 @@ global ind
 global outd
 global write_int_gate
 global write_tss_gate
+global setcr0
+global setcr2
+global setcr3
 
 struc REGS
     .edi    resd 1
