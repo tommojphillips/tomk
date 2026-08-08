@@ -154,7 +154,7 @@ getstate_done:
 ; 3rd dword on stack is input registers pointer
 ; 4th dword on stack is output state pointer
 int86:
-    ;pusha                              ; save register state
+    pusha                              ; save register state
 
     mov al, [esp + 4]                   ; vector
     mov [vec], al    
@@ -171,7 +171,7 @@ vec db 0x00
     call getstate
     add esp, 4
 
-    ;popa                               ; restore regiser state
+    popa                               ; restore regiser state
     ret
     
 ; inb;
