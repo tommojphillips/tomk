@@ -12,14 +12,14 @@ global UDATA
 global USTACK
 global gdt
 
-KCODE   equ gdt_kcode  - gdt_start       ; kernel code segment
-KDATA   equ gdt_kdata  - gdt_start       ; kernel data segment
-KSTACK  equ gdt_kstack - gdt_start       ; kernel stack segment
-KTSS    equ gdt_tss    - gdt_start       ; Kernel tss segment
+KCODE   equ gdt_kcode  - gdt       ; kernel code segment
+KDATA   equ gdt_kdata  - gdt       ; kernel data segment
+KSTACK  equ gdt_kstack - gdt       ; kernel stack segment
+KTSS    equ gdt_tss    - gdt       ; Kernel tss segment
 
-UCODE   equ (gdt_ucode  - gdt_start) | 3 ; user code segment
-UDATA   equ (gdt_udata  - gdt_start) | 3 ; user data segment
-USTACK  equ (gdt_ustack - gdt_start) | 3 ; user stack segment
+UCODE   equ (gdt_ucode  - gdt) | 3 ; user code segment
+UDATA   equ (gdt_udata  - gdt) | 3 ; user data segment
+USTACK  equ (gdt_ustack - gdt) | 3 ; user stack segment
 
 Section .data
 
