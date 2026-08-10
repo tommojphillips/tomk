@@ -10,11 +10,13 @@ extern PIC_BASE
 global ps2_init
 global ps2_poll
 global ps2_getchar
+global ps2_getscancode
 global ps2_sc2ch
 global ps2_cpu_reset
 
 %include "src\kernel\include\common.inc"
 
+IRQ1        equ 1
 KB_BUF_SIZE equ 32
 
 Section .rodata
@@ -56,11 +58,11 @@ ps2_init:
     push KCODE                         ; selector
     push 10001110b                     ; access P=1 DPL=00 S=0 TYPE=1110 (INT 386)    
     push ps2_int_handler               ; offset
-    push PIC_BASE+1                    ; vector 
+    push PIC_BASE+IRQ1                 ; vector 
     call write_int_gate
     add esp, 16
 
-    push 0x1                           ; IRQ1 (KB)
+    push IRQ1                          ; IRQ1 (KB)
     call pic_enable_irq
     add esp, 4
 
