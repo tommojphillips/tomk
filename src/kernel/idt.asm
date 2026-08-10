@@ -2,19 +2,19 @@
 
 BITS 32
 
-extern exception_dbz   ; interrupts.c
-extern exception_trap  ; interrupts.c
-extern exception_nmi   ; interrupts.c
-extern exception_int3  ; interrupts.c
-extern exception_of    ; interrupts.c
-extern exception_bound ; interrupts.c
-extern exception_ud    ; interrupts.c
-extern exception_df    ; interrupts.c
-extern exception_ts    ; interrupts.c
-extern exception_np    ; interrupts.c
-extern exception_ss    ; interrupts.c
-extern exception_gp    ; interrupts.c
-extern exception_pf    ; interrupts.c
+extern exception_dbz   ; exceptions.c
+extern exception_trap  ; exceptions.c
+extern exception_nmi   ; exceptions.c
+extern exception_int3  ; exceptions.c
+extern exception_of    ; exceptions.c
+extern exception_bound ; exceptions.c
+extern exception_ud    ; exceptions.c
+extern exception_df    ; exceptions.c
+extern exception_ts    ; exceptions.c
+extern exception_np    ; exceptions.c
+extern exception_ss    ; exceptions.c
+extern exception_gp    ; exceptions.c
+extern exception_pf    ; exceptions.c
 extern write_int_gate  ; idt.asm
 extern kernel_hang     ; entry.asm
 
@@ -132,8 +132,6 @@ idt_init:
     call write_int_gate
     add esp, 16
 
-    sti                            ; enable interrupts
-    
     ret
 
 ; EXCEPTION HANDLERS
@@ -178,7 +176,7 @@ exc_handler:
 .skip:
     add esp, 18*4                      ; pop STATE
 
-    call kernel_hang
+    call hang
     iret
 
 exc_dbz:
