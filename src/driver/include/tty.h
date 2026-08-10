@@ -15,6 +15,9 @@ void tty_clear_screen(void);
 /* TTY Set Cursor Position */
 void tty_set_position(size_t row, size_t column);
 
+/* TTY Get Cursor Position */
+void tty_get_position(size_t* x, size_t* y);
+
 /* TTY Set Color */
 void tty_set_color(uint8_t color);
 
