@@ -4,8 +4,6 @@
 #include <string.h>
 #include <tty.h>
 
-#define MAX_BUFFER 32
-
 static int pr_int(int64_t value, int width, int precision, char pad, int left) {
     int count = 0;
     if (value < 0) {
@@ -55,7 +53,6 @@ static int pr_string(const char* s, int width, int precision, int left) {
 
     return count;
 }
-
 static int parse_number(const char* restrict* fmt) {
     int number = 0;
     while (**fmt >= '0' && **fmt <= '9') {
@@ -65,8 +62,7 @@ static int parse_number(const char* restrict* fmt) {
     return number;
 }
 
-int printf(const char* restrict fmt, ...) {
-    va_list args;
+int vprintf(const char* restrict fmt, va_list args) {
     size_t count;
     int left;
     char pad;
@@ -74,8 +70,6 @@ int printf(const char* restrict fmt, ...) {
     int precision;
     int long_long;
     int lower;
-    
-    va_start(args, fmt);
 
     count = 0;
     while (*fmt) {
@@ -206,7 +200,14 @@ int printf(const char* restrict fmt, ...) {
 
         fmt++;
     }
-
+    return count;
+}
+int printf(const char* restrict fmt, ...) {
+    va_list args;
+    size_t count;
+    
+    va_start(args, fmt);
+    count = vprintf(fmt, args);
     va_end(args);
     return count;
 }

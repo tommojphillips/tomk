@@ -8,6 +8,7 @@
 
 #define EOF 0
 
+int vprintf(const char* restrict fmt, va_list args);
 int printf(const char* restrict fmt, ...);
 int getchar(void);
 int putchar(int ch);
