@@ -110,6 +110,6 @@ typedef struct multiboot_mmap_t {
 } multiboot_mmap_t;
 
 typedef struct kmmap_t kmmap_t;
-void mb_init(kmmap_t* kmmap, uint32_t* out_memory_total);
+void mb_init(kmmap_t* kmmap);
 
 #endif
