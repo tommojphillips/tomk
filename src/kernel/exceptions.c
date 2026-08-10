@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <i86.h>
+#include <paging.h>
 
 void print_cpu_state(cpu_state_t* state) {
     printf("LA  = 0x%X:0x%X\nF   = 0x%X\nCR0 = 0x%X\nCR2 = 0x%X\nCR3 = 0x%X\nEAX = 0x%X\nECX = 0x%X\nEDX = 0x%X\nEBX = 0x%X\n" \
@@ -77,6 +78,21 @@ void exception_gp(cpu_state_t* state) {
 }
 void exception_pf(cpu_state_t* state) {
     /* Page fault */
-    printf("\n#PF(%X):\n", state->int_error);
-    print_cpu_state(state);
+
+    /* Treat unmapped addresses in the first page as a NULL pointer dereference */
+    if (!(state->int_error & PTE_P) && (state->cr2 & 0x00000FFF) == 0) {
+        printf("\nFATAL: NULL pointer dereference at EIP 0x%08X (%c)\n", state->int_eip,
+            (state->int_error & PTE_RW) ? 'W' : 'R');
+    }
+    else {
+        printf("\n#PF(%X): %s, %s, %s, 0x%8.8X\n", state->int_error,
+            (state->int_error & PTE_P) ? "P" : "NP",
+            (state->int_error & PTE_RW) ? "Wr" : "Rd",
+            (state->int_error & PTE_US) ? "U" : "S",
+            state->cr2);
+
+        print_cpu_state(state);
+    }
+    
+    setcr2(0);
 }
