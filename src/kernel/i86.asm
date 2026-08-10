@@ -4,21 +4,54 @@ BITS 32
 
 extern idt
 extern gdt
+extern timer_ticks
+extern printf
 
-global setregs
-global getregs
 global int86
+
 global inb
 global outb
 global inw
 global outw
 global ind
 global outd
+
 global write_int_gate
 global write_tss_gate
+
+global setregs
+global getregs
+
 global setcr0
 global setcr2
 global setcr3
+
+global getcr0
+global getcr2
+global getcr3
+
+global setdr0
+global setdr1
+global setdr2
+global setdr3
+global setdr6
+global setdr7
+
+global getdr0
+global getdr1
+global getdr2
+global getdr3
+global getdr6
+global getdr7
+
+global enable_interrupts
+global disable_interrupts
+
+global spinwait
+global haltwait
+global wait_ms
+
+global hang
 
 struc REGS
     .edi    resd 1
@@ -59,6 +92,11 @@ REGS.bp equ REGS.ebp
 REGS.si equ REGS.esi
 REGS.di equ REGS.edi
 
+Section .rodata
+    hang_str db "FATAL: HANG at EIP 0x%8.8X", 0
+
+Section .text
+
 ; Set CPU Registers
 ; 2nd dword on stack is input registers
 setregs:
@@ -81,7 +119,7 @@ getregs:
     pusha                              ; save register state
     mov ebp, [esp + 36]                ; output_regs (+32 from pusha)
     test ebp, ebp                      ; output_regs == NULL
-    jz getregs_skip                    ; yes, skip
+    jz .skip                           ; yes, skip
                                        ; no, write it.
 
     mov eax, [esp + 0]
@@ -108,7 +146,7 @@ getregs:
     mov eax, [esp + 28]
     mov [ebp + REGS.eax], eax
 
-getregs_skip:
+.skip:
     popa                               ; restore regiser state
     ret
 
@@ -116,7 +154,7 @@ getregs_skip:
 ; 2rd dword on stack is output state
 getstate:
 
-    push [esp + 4]                      ; output state
+    push [esp + 4]                     ; output state
     call getregs
     add esp, 4
 
@@ -156,10 +194,10 @@ getstate_done:
 int86:
     pusha                              ; save register state
 
-    mov al, [esp + 4]                   ; vector
+    mov al, [esp + 4]                  ; vector
     mov [vec], al    
 
-    push [esp + 8]                      ; input regs
+    push [esp + 8]                     ; input regs
     call setregs
     add esp, 4
 
@@ -167,7 +205,7 @@ int86:
     db 0xCD
 vec db 0x00
      
-    push [esp + 12]                      ; output state
+    push [esp + 12]                    ; output state
     call getstate
     add esp, 4
 
@@ -175,75 +213,86 @@ vec db 0x00
     ret
     
 ; inb;
-; 2nd dword on stack is port
-; returns value in AL
+; esp+4 = port
+; returns value
 inb:
-    mov edx, [esp + 4]
+    push edx
+    mov dx, [esp + 8]
     xor eax, eax
     in al, dx
+    pop edx
     ret
 
 ; inw;
-; 2nd dword on stack is port
-; returns value in AX
+; esp+4 = port
+; returns value
 inw:
-    mov edx, [esp + 4]
+    push edx
+    mov dx, [esp + 8]
     xor eax, eax
     in ax, dx
+    pop edx
     ret
    
 ; ind;
-; 2nd dword on stack is port
-; returns value in EAX
+; esp+4 = port
+; returns value
 ind:
-    mov edx, [esp + 4]
+    push edx
+    mov dx, [esp + 8]
     xor eax, eax
     in eax, dx
+    pop edx
     ret
     
 ; outb;
-; 2nd dword on stack is port
-; 3rd dword on stack is value
+; esp+4 = port
+; esp+8 = value
 outb:
-    mov edx, [esp + 4]
-    mov eax, [esp + 8]
+    push edx
+    mov dx, [esp + 8]
+    mov al, [esp + 12]
     out dx, al
+    pop edx
     ret
 
 ; outw;
-; 2nd dword on stack is port
-; 3rd dword on stack is value
+; esp+4 = port
+; esp+8 = value
 outw:
-    mov edx, [esp + 4]
-    mov eax, [esp + 8]
+    push edx
+    mov dx, [esp + 8]
+    mov ax, [esp + 12]
     out dx, ax
+    pop edx
     ret
 
 ; outd;
-; 2nd dword on stack is port
-; 3rd dword on stack is value
+; esp+4 = port
+; esp+8 = value
 outd:
-    mov edx, [esp + 4]
-    mov eax, [esp + 8]
+    push edx
+    mov dx, [esp + 8]
+    mov eax, [esp + 12]
     out dx, eax
+    pop edx
     ret
- 
- 
+  
 ; Write interrupt gate
-; offset
-; selector
-; ar byte
-; vector
+; esp+4   = vector
+; esp+8   = offset
+; esp+12  = ar byte
+; esp+16  = selector
 write_int_gate:
     push ebx
     push esi
     push edi
 
     xor ecx, ecx
-    mov cl, [esp + 12+4]       ; vector
-    mov esi, [esp + 12+8]      ; offset
-    mov bl, [esp + 12+12]      ; ar byte
-    mov ax, [esp + 12+16]      ; selector
+    mov cl, [esp+12+4]         ; vector
+    mov esi, [esp+12+8]        ; offset
+    mov bl, [esp+12+12]        ; ar byte
+    mov ax, [esp+12+16]        ; selector
     mov edi, idt               ; idt base
 
     mov [edi+ecx*8+0], si      ; offset lower 16bit
@@ -259,27 +308,27 @@ write_int_gate:
     ret
     
 ; Write call gate
-; offset
-; selector
-; ar byte
-; index
+; esp+4  = offset
+; esp+8  = selector
+; esp+12 = ar byte
+; esp+16 = index
 write_call_gate:
     ret
       
 ; Write tss gate
-; selector
-; limit
-; ar
-; base
+; esp+4  = selector
+; esp+8  = limit
+; esp+12 = ar
+; esp+16 = base
 write_tss_gate:
     push ebx
     push esi
     push edi
 
-    mov ecx, [esp + 12+4]      ; selector
-    mov esi, [esp + 12+8]      ; limit
-    mov ebx, [esp + 12+12]     ; ar byte
-    mov eax, [esp + 12+16]     ; base
+    mov ecx, [esp+12+4]        ; selector
+    mov esi, [esp+12+8]        ; limit
+    mov bx, [esp+12+12]        ; ar word
+    mov eax, [esp+12+16]       ; base
     mov edi, gdt               ; gdt base
     mov edx, esi
     
@@ -304,36 +353,186 @@ write_tss_gate:
     ret
 
 ; Write task gate
-; offset
-; selector
-; ar
-; index
+; esp+4  = offset
+; esp+8  = selector
+; esp+12 = ar byte
+; esp+16 = index
 write_task_gate:
     ret
 
+; Set CR0
+; esp+4  = value
 setcr0:
     mov eax, [esp+4]
     mov cr0, eax
     ret
 
+; Get CR0
+; returns value
 getcr0:
     mov eax, cr0
     ret
     
+; Set CR2
+; esp+4  = value
 setcr2:
     mov eax, [esp+4]
     mov cr2, eax
     ret
     
+; Get CR2
+; returns value
 getcr2:
     mov eax, cr2
     ret
     
+; Set CR3
+; esp+4  = value
 setcr3:
     mov eax, [esp+4]
     mov cr3, eax
     ret
     
+; Get CR3
+; returns value
 getcr3:
     mov eax, cr3
+    ret
+
+; Set DR0
+; esp+4  = value
+setdr0:
+    mov eax, [esp+4]
+    mov dr0, eax
+    ret
+    
+; Get DR0
+; returns value
+getdr0:
+    mov eax, dr0
+    ret
+
+; Set DR1
+; esp+4  = value
+setdr1:
+    mov eax, [esp+4]
+    mov dr1, eax
+    ret
+    
+; Get DR1
+; returns value
+getdr1:
+    mov eax, dr1
+    ret
+
+; Set DR2
+; esp+4  = value
+setdr2:
+    mov eax, [esp+4]
+    mov dr2, eax
+    ret
+    
+; Get DR2
+; returns value
+getdr2:
+    mov eax, dr2
+    ret
+
+; Set DR3
+; esp+4  = value
+setdr3:
+    mov eax, [esp+4]
+    mov dr3, eax
+    ret
+    
+; Get DR3
+; returns value
+getdr3:
+    mov eax, dr3
+    ret
+
+; Set DR6
+; esp+4  = value
+setdr6:
+    mov eax, [esp+4]
+    mov dr6, eax
+    ret
+    
+; Get DR6
+; returns value
+getdr6:
+    mov eax, dr6
+    ret
+
+; Set DR7
+; esp+4  = value
+setdr7:
+    mov eax, [esp+4]
+    mov dr7, eax
+    ret
+    
+; Get DR7
+; returns value
+getdr7:
+    mov eax, dr7
+    ret
+
+; Enable interrupts
+enable_interrupts:
+    sti
+    ret
+
+; Disable interrupts
+disable_interrupts:
+    cli
+    ret
+
+; spin-wait x times
+; esp+4  = amount
+spinwait:
+    mov eax, [esp+4]
+    
+    test eax, eax
+    jz .done
+
+.spin:
+    dec eax
+    jnz .spin
+
+.done:
+    ret
+
+; halt cpu
+haltwait:
+    hlt
+    ret
+
+; halt cpu indefinitely
+hang:
+    push hang_str
+    call printf
+    add esp, 8               ; consume return address
+.hang:
+    cli
+    hlt
+    jmp .hang
+
+; Wait time in MS
+; esp+4 = duration in ms
+wait_ms:
+    push edx
+    
+    mov ecx, [timer_ticks]             ; start = timer_ticks;
+    mov edx, [esp+8]                   ; ticks = ms;
+
+.lp:
+    mov eax, [timer_ticks]             ; get current ticks
+    sub eax, ecx                       ; elapsed = timer_ticks - start
+    cmp eax, edx                       ; duration < elapsed ?
+    jnc .done                          ; yes, done
+    hlt                                ; no, wait for interrupt
+    jmp .lp                            ; we've woken up from an interrupt; check time.
+
+.done:
+    pop edx
     ret
