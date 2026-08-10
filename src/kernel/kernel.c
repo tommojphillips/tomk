@@ -36,5 +36,12 @@ void kernel_main(void) {
 		}
 	}
 	printf("DONE\n");
+}
 
+void kernel_panic(const char* fmt, ...) {
+	va_list args;
+	va_start(args, fmt);
+	vprintf(fmt, args);
+	va_end(args);
+	hang();
 }

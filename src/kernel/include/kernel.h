@@ -3,6 +3,6 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-extern void kernel_hang(void);     /* entry.asm */
+void kernel_panic(const char* fmt, ...);
 
 #endif
