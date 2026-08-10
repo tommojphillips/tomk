@@ -18,8 +18,8 @@
 #define KMREGION_FLAG_US_USER  0x8
 
 typedef struct kmregion_t {
-	uint32_t address;
-	uint32_t size;
+	uint64_t address;
+	uint64_t size;
 	uint32_t flags;
 } kmregion_t;
 
@@ -30,7 +30,7 @@ typedef struct kmmap_t {
 } kmmap_t;
 
 void kmmap_init(kmmap_t** kmmap, size_t size);
-void kmmap_add(kmmap_t* kmmap, uint32_t address, uint32_t size, uint32_t flags);
-void kmmap_remove(kmmap_t* kmmap, uint32_t address);
+void kmmap_add(kmmap_t* kmmap, uint64_t address, uint64_t size, uint32_t flags);
+void kmmap_remove(kmmap_t* kmmap, uint64_t address);
 
 #endif
