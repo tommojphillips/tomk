@@ -16,7 +16,7 @@ extern exception_ss    ; exceptions.c
 extern exception_gp    ; exceptions.c
 extern exception_pf    ; exceptions.c
 extern write_int_gate  ; idt.asm
-extern kernel_hang     ; entry.asm
+extern hang            ; i86.asm
 
 global idt_init
 global idt
