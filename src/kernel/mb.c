@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include <multiboot.h>
+#include <mb.h>
 #include <kmmap.h>
 #include <kernel.h>
 
