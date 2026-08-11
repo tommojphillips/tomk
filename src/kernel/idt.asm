@@ -18,7 +18,7 @@ extern exception_ss    ; exceptions.c
 extern exception_gp    ; exceptions.c
 extern exception_pf    ; exceptions.c
 extern write_int_gate  ; idt.asm
-extern hang            ; i86.asm
+extern kernel_hang     ; kernel.asm
 
 global idt_init
 global idt
@@ -178,7 +178,7 @@ exc_handler:
 .skip:
     add esp, 18*4                      ; pop STATE
 
-    call hang
+    call kernel_hang
     iret
 
 exc_dbz:

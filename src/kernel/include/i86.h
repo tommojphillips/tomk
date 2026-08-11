@@ -191,9 +191,6 @@ extern void spinwait(uint32_t spins);
 /* Wait using hlt instruction. */
 extern void haltwait(void);
 
-/* Hang CPU indefinitely */
-extern void hang(void);
-
 /* Write INT Gate to IDT
  vector:   IDT index
  ar:       int ar byte 

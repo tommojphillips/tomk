@@ -53,8 +53,6 @@ global spinwait
 global haltwait
 global wait_ms
 
-global hang
-
 struc REGS
     .edi    resd 1
     .esi    resd 1
@@ -93,9 +91,6 @@ REGS.sp equ REGS.esp
 REGS.bp equ REGS.ebp
 REGS.si equ REGS.esi
 REGS.di equ REGS.edi
-
-Section .rodata
-    hang_str db "FATAL: HANG at EIP 0x%8.8X", 0
 
 Section .text
 
@@ -508,16 +503,6 @@ spinwait:
 haltwait:
     hlt
     ret
-
-; halt cpu indefinitely
-hang:
-    push hang_str
-    call printf
-    add esp, 8               ; consume return address
-.hang:
-    cli
-    hlt
-    jmp .hang
 
 ; Wait time in MS
 ; esp+4 = duration in ms
