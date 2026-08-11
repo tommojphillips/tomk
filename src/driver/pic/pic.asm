@@ -11,6 +11,9 @@ global pic_disable
 global pic_send_eoi
 global pic_enable_irq
 global pic_disable_irq
+global pic_get_irq_reg
+global pic_get_isr
+global pic_get_irr
 global PIC_BASE
 
 PIC_BASE equ 0x20         ; ICW2 - interrupt vector base
@@ -152,4 +155,40 @@ pic_disable_irq:
     out dx, al
 
     pop ebx
+    ret
+
+; PIC get irq reg
+; esp+4 = ocw3
+; Returns irq reg
+pic_get_irq_reg:
+    ; OCW3 to PIC CMD to get the register values.  PIC2 is chained, and
+    ; represents IRQs 8-15. PIC1 is IRQs 0-7, with 2 being the chain
+    
+    mov eax, [esp+4] ; ocw3
+    
+    ; outb(PIC1_COMMAND, ocw3);
+    out PIC1_CTRL, al
+
+    ; outb(PIC2_COMMAND, ocw3);
+    out PIC2_CTRL, al
+
+    ; return (inb(PIC2_COMMAND) << 8) | inb(PIC1_COMMAND);
+    in al, PIC2_CTRL
+    shl ax, 8
+    in al, PIC1_CTRL
+
+    ret
+    
+; Get IRR register
+pic_get_irr:
+    push 0x0A ; IRR
+    call pic_get_irq_reg
+    add esp, 4
+    ret
+
+; Get ISR register
+pic_get_isr:
+    push 0x0B ; ISR
+    call pic_get_irq_reg
+    add esp, 4
     ret

@@ -22,4 +22,10 @@ extern void pic_enable_irq(uint8_t irq);
 /* Disable IRQ line */
 extern void pic_disable_irq(uint8_t irq);
 
+/* Get IRR register */
+extern uint16_t pic_get_irr(void);
+
+/* Get ISR register */
+extern uint16_t pic_get_isr(void);
+
 #endif
