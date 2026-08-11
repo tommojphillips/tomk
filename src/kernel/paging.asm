@@ -1,4 +1,11 @@
 ; paging.asm
+; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+;
+; Paging using a statically allocated page directory and page tables.
+; The page directory and all page tables occupy one contiguous 4 MiB + 4 KiB
+; allocation, allowing page-table addresses to be derived directly from the
+; page-directory base and PDE index without additional bookkeeping.
+;
 
 BITS 32
 
@@ -21,7 +28,7 @@ US         equ 0x04            ; 0 = Super; 1 = User
 A          equ 0x20            ; 0 = not accessed; 1 = accessed
 D          equ 0x40            ; 0 = not dirty; 1 = dirty
 
-PAGE_SIZE  equ 0x1000          ; Page table size
+PAGE_SIZE  equ 0x1000          ; 4 KiB page size
 PD_SIZE    equ PAGE_SIZE
 PD_COUNT   equ 0x0400          ; Page directory count
 PT_SIZE    equ PAGE_SIZE*PD_COUNT

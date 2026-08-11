@@ -1,4 +1,6 @@
-/* kernel/include/kalloc.h */
+/* kalloc.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef KALLOC_H
 #define KALLOC_H

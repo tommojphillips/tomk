@@ -1,3 +1,9 @@
+; multiboot.asm
+; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+;
+; Multiboot header
+;
+
 BITS 32
 
 MB_MAGIC    equ 0x1BADB002

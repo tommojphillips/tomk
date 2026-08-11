@@ -1,4 +1,6 @@
-/* driver/include/pit.h */
+/* pit.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef DRIVER_PIT_H
 #define DRIVER_PIT_H

@@ -1,4 +1,9 @@
-; pic.asm - Programmable interrupt controller
+; pic.asm
+; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+;
+; Programmable interrupt controller 
+;
+
 BITS 32
 
 global pic_init

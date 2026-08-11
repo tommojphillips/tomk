@@ -1,4 +1,6 @@
-/* tty.c */
+/* tty.c
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #include <stdbool.h>
 #include <stdint.h>

@@ -1,4 +1,6 @@
-/* driver/vga.h */
+/* vga.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef DRIVER_VGA_H
 #define DRIVER_VGA_H

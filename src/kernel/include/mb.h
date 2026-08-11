@@ -1,4 +1,6 @@
-/* multiboot.h */
+/* multiboot.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef MULTIBOOT_H
 #define MULTIBOOT_H

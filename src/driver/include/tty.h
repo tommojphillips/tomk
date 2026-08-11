@@ -1,4 +1,6 @@
-/* driver/tty.h */
+/* tty.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef DRIVER_TTY_H
 #define DRIVER_TTY_H

@@ -1,4 +1,6 @@
-/* driver/include/pic.h */
+/* pic.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef DRIVER_PIC_H
 #define DRIVER_PIC_H

@@ -1,4 +1,8 @@
 ; pit.asm
+; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+;
+
+BITS 32
 
 extern write_int_gate
 extern pic_enable_irq

@@ -1,4 +1,6 @@
-/* pmm.h - Physical Memory Mananger */
+/* pmm.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef _PMM_H
 #define _PMM_H

@@ -1,3 +1,6 @@
+; common.inc
+; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+;
 
 extern KCODE                            ; Kernel code segment
 extern KDATA                            ; Kernel data segment

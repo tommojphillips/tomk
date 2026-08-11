@@ -1,4 +1,6 @@
-/* vmm.h - Virtual Memory Mananger */
+/* vmm.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef _VMM_H
 #define _VMM_H

@@ -1,4 +1,9 @@
-; ps2.asm - ps/2 keyboard driver
+; ps2.asm
+; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+;
+; PS/2 keyboard driver
+;
+
 BITS 32
 
 extern write_int_gate

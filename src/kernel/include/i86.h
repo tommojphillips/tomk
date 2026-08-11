@@ -1,4 +1,6 @@
-/* kernel/include/i86.h */
+/* i86.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef I86_H
 #define I86_H

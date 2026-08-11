@@ -1,4 +1,6 @@
-/* multiboot.c */
+/* mb.c
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #include <stdint.h>
 #include <stddef.h>

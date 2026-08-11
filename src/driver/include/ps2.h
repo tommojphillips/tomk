@@ -1,4 +1,6 @@
-/* driver/include/ps2.h */
+/* ps2.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef DRIVER_PS2_H
 #define DRIVER_PS2_H

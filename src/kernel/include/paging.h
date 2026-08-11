@@ -1,4 +1,6 @@
-/* paging.h */
+/* paging.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef PAGING_H
 #define PAGING_H

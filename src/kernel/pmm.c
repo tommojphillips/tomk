@@ -1,4 +1,6 @@
-/* pmm.c - Physical Memory Mananger */
+/* pmm.c
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #include <stdint.h>
 #include <string.h>

@@ -1,4 +1,6 @@
-/* kernel/include/kmmap.h */
+/* kmmap.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
 
 #ifndef KMMAP_H
 #define KMMAP_H

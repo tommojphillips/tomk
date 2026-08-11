@@ -1,4 +1,6 @@
 ; tss.asm
+; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+;
 
 BITS 32
 

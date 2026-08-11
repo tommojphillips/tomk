@@ -1,3 +1,7 @@
+/* assert.h
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
+
 #ifndef _ASSERT_H
 #define _ASSERT_H
 
