@@ -1,5 +1,10 @@
 /* kalloc.c
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ *
+ * Bootstrap allocator.
+ *
+ * Allocations persist for the lifetime of the kernel and cannot be freed.
+ * Intended only for early initialization and permanent kernel structures.
  */
 
 #include <stdint.h>
@@ -17,55 +22,66 @@
 
 #define KPANIC
 
-static uint32_t kalloc_base;
-static uint32_t kalloc_next;
-static uint32_t kalloc_limit;
+typedef struct kalloc_t {
+	uint32_t base;
+	uint32_t next;
+	uint32_t limit;
+	uint32_t enabled;
+} kalloc_t;
+
+static kalloc_t ka;
 
 #define DEFAULT_ALIGNMENT 0x10
 
+/* ALIGN */
+#define ALIGN(t,x,a) (((t)(x) + (t)((a) - 1)) & ~((t)((a) - 1)))
+
 void kalloc_init(uint32_t base, uint32_t limit) {
-	kalloc_base = base;
-	kalloc_next = base;
-	kalloc_limit = limit;
+	ka.base = base;
+	ka.next = base;
+	ka.limit = limit;
+	ka.enabled = 1;
+
+	kprint("[KALLOC] Init\n");
+}
+void kalloc_disable(void) {
+	ka.enabled = 0;
 }
 uint32_t kalloc_get_base(void) {
-	return kalloc_base;
+	return ka.base;
 }
 uint32_t kalloc_get_next(void) {
-	return kalloc_next;
+	return ka.next;
 }
 uint32_t kalloc_get_limit(void) {
-	return kalloc_limit;
+	return ka.limit;
 }
 void* kalloc_align(size_t size, size_t align) {
-	if (align > 0x1000) {
-		align = 0x1000;
+	uint32_t p = 0;
+	size_t s = 0;
+
+	if (!ka.enabled) {
+		return NULL;
 	}
+
 	if (align == 0) {
 		align = DEFAULT_ALIGNMENT;
 	}
-	size = (size + (align - 1)) & ~((size_t)(align - 1));
-	if (kalloc_next + size > kalloc_base + kalloc_limit) {
-	#ifdef KPANIC
-		kernel_panic("[KALLOC] Error: Out of memory!\n");
-	#else
-		kprint("[KALLOC] Error: Out of memory!\n");
-	#endif
+
+	p = ALIGN(uint32_t, ka.next, align);
+	s = size;
+
+	if (((p - ka.base) + s) > ka.limit) {
+		kprint("[KALLOC] Alloc failed. Size = 0x%08X\n", s);
 		return NULL;
 	}
-	void* ptr = (void*)kalloc_next;
-	kalloc_next += size;
-	kprint("[KALLOC] Alloc p=0x%08X (0x%X)\n", (uint32_t)ptr, size);
-	return ptr;
+	
+	ka.next = p + s;
+	return (void*)p;
 }
 void* kalloc_page(size_t size) {
 	return kalloc_align(size, 0x1000);
 }
 void* kalloc(size_t size) {
-	return kalloc_align(size, DEFAULT_ALIGNMENT);
-}
-void kfree(void* ptr) {
-	/* no need to free kernel allocations, yet */
-	(void)ptr;
-	kprint("[KALLOC] Free not managed! p=0x%08X\n", (uint32_t)ptr);
+	return kalloc_align(size, 0);
 }
