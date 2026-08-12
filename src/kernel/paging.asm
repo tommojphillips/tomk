@@ -10,6 +10,7 @@
 BITS 32
 
 extern kalloc_page
+extern kernel_panic
 
 global pd_base
 global paging_init
@@ -33,6 +34,9 @@ PD_SIZE    equ PAGE_SIZE
 PD_COUNT   equ 0x0400          ; Page directory count
 PT_SIZE    equ PAGE_SIZE*PD_COUNT
 
+Section .rodata
+    init_error_str db "[PG] Error, kalloc failed", 0
+
 Section .bss
     pd_base dd ?
 
@@ -47,18 +51,31 @@ paging_init:
     call kalloc_page
     add esp, 4
 
+    test eax, eax             ; NULL?
+    jz .error                 ; yes, error
+
+.set_pd_base:
     mov [pd_base], eax
     mov edx, eax               ; pd_base
-    
+
+.zero_pd_pt:
     cld                        ; zero PD/PT (PD_BASE, 0, 4096+(4096*1024));
     xor eax, eax
     mov ecx, (PD_SIZE+PT_SIZE)/4
     mov edi, edx
     rep stosd
 
+.set_cr3:
     mov eax, edx               ; pd_base
     mov cr3, eax               ; load page directory address into cr3    
 
+    jmp .done
+
+.error:
+    push init_error_str
+    call kernel_panic          ; doesnt return
+
+.done:
     pop edi
     pop edx
     ret
