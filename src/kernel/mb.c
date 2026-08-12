@@ -21,10 +21,10 @@ void mb_init(kmmap_t* kmmap) {
 			uint64_t len = ((uint64_t)mmap->len2 << 32) |  (uint64_t)mmap->len1;
 			
 			if (mmap->type == MULTIBOOT_MMAP_TYPE_RAM) {
-				kmmap_add(kmmap, addr, len, KMREGION_FLAG_AR_RW);
+				kmmap_add(kmmap, addr, len, KMREGION_TYPE_RAM);
 			}
 			else {
-				kmmap_add(kmmap, addr, len, KMREGION_FLAG_AR_REV);
+				kmmap_add(kmmap, addr, len, KMREGION_TYPE_REV);
 			}
 			
 			mmap = (multiboot_mmap_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
