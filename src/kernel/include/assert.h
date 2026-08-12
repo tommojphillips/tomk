@@ -8,8 +8,12 @@
 #include <kernel.h>
 
 #define ASSERT_ENABLE
+
 #ifdef ASSERT_ENABLE
-#define assert(x, ...) do { if (!(x)) { kernel_panic(__VA_ARGS__); } } while(0);
+#define STRINGIFY_(x) #x
+#define STRINGIFY(x) STRINGIFY_(x)
+#define assert(x, s) do { if (!(x)) { printf("ASSERT: \""#x"\" FAILED.\n in " __FILE__ " Ln " STRINGIFY(__LINE__) "\n"); kernel_panic(s); } } while(0)
+
 #else
 #define assert(x, ...)
 #endif
