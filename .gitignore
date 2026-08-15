@@ -1,9 +1,11 @@
-.vscode
+
 *.elf
+*.sym
 *.list
 *.map
 *.o
 *.bxrc
 
-obj\
-bin\
+.vscode
+obj
+bin
