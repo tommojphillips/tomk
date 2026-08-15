@@ -13,13 +13,13 @@ extern kalloc_page
 extern kernel_panic
 
 global pd_base
-global paging_init
-global paging_enable
-global paging_disable
-global paging_map
-global paging_flush
-global paging_invalidate
-global paging_get_physical
+global pg_init
+global pg_enable
+global pg_disable
+global pg_map
+global pg_flush
+global pg_invalidate
+global pg_get_physical
 
 %include "src\kernel\include\common.inc"
 
@@ -43,7 +43,7 @@ Section .bss
 Section .text
 
 ; Init page directory and page table
-paging_init:
+pg_init:
     push edx
     push edi
 
@@ -82,7 +82,7 @@ paging_init:
 
 ; Enable paging
 ; Returns CR3
-paging_enable:
+pg_enable:
     mov eax, cr0
     or eax, 0x80000000         ; PG bit
     mov cr0, eax
@@ -93,7 +93,7 @@ paging_enable:
 
 ; Disable paging
 ; Returns CR3
-paging_disable:
+pg_disable:
     mov eax, cr0
     and eax, 0x7FFFFFFF         ; PG bit
     mov cr0, eax
@@ -119,7 +119,7 @@ _map_page:
 
 .loc_pde:
     push esi
-    call paging_loc_pde
+    call pg_loc_pde
     add esp, 4
 
     test dword [eax], P
@@ -136,7 +136,7 @@ _map_page:
 
 .loc_pte:
     push esi
-    call paging_loc_pte
+    call pg_loc_pte
     add esp, 4
 
 .build_pte:                    ; build pte
@@ -158,7 +158,7 @@ _map_page:
 ; esp+8  = physical_address
 ; esp+12 = flags (lower 12bits)
 ; esp+16 = count (in 4096-byte units)
-paging_map:
+pg_map:
     push ebp                           ; save ebp
     mov ebp, esp                       ; save frame ptr
     add ebp, 4                         ; point frame ptr at params-4
@@ -185,13 +185,13 @@ paging_map:
 
 ; flush entire TLB
 ; returns CR3
-paging_flush:
+pg_flush:
     mov eax, cr3
     mov cr3, eax
     ret
 
 ; invalidate page
-paging_invalidate:
+pg_invalidate:
     mov eax, cr3
     mov cr3, eax
     ret
@@ -199,7 +199,7 @@ paging_invalidate:
 ; located PDE
 ; esp+4 = linear_address
 ; Returns pointer to PDE
-paging_loc_pde:
+pg_loc_pde:
     push edx
     push edi
 
@@ -223,7 +223,7 @@ paging_loc_pde:
 ; located PTE
 ; esp+4 = linear_address
 ; Returns pointer to PTE
-paging_loc_pte:
+pg_loc_pte:
     push edx
     push edi
 
@@ -252,21 +252,21 @@ paging_loc_pte:
 ; esp+4 = linear_address
 ; returns physical address in eax
 ; returns 0 if not mapped
-paging_get_physical:
+pg_get_physical:
     push esi
 
     mov esi, [esp+4+4]       ; linear_address
     xor ecx, ecx             ; ret_val
     
     push esi                 ; linear_address
-    call paging_loc_pde      ; Locate PDE
+    call pg_loc_pde          ; Locate PDE
     add esp, 4
     
     test dword [eax], P      ; PDE present?
     jz .done                 ; No, page not mapped; we done
     
     push esi                 ; linear_address     
-    call paging_loc_pte      ; Locate PTE
+    call pg_loc_pte          ; Locate PTE
     add esp, 4
 
     test dword [eax], P      ; PTE present?

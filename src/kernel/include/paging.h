@@ -46,37 +46,37 @@ typedef pte_t pde_t;
 
 /* Locate PDE containing linear address.
  Returns a pointer to the page directory entry  */
-extern pde_t* paging_loc_pde(uint32_t linear_address);
+extern pde_t* pg_loc_pde(uint32_t linear_address);
 
 /* Locate PTE containing linear address.
  Returns a pointer to the page table entry */
-extern pte_t* paging_loc_pte(uint32_t linear_address);
+extern pte_t* pg_loc_pte(uint32_t linear_address);
 
 /* Map contiguous pages
 linear_address:       linear start address
 phyiscal_address:     physical start address
 flags:                page flags
 count:                page count */
-extern void paging_map(uint32_t linear_address, uint32_t physical_address, uint32_t flags, uint32_t count);
+extern void pg_map(uint32_t linear_address, uint32_t physical_address, uint32_t flags, uint32_t count);
 
 /* Flush TLB 
 Returns CR3 */
-extern uint32_t paging_flush(void);
+extern uint32_t pg_flush(void);
 
 /* Flush TLB */
-extern void paging_invalidate(uint32_t linear_address);
+extern void pg_invalidate(uint32_t linear_address);
 
 /* Enable paging 
 Returns CR3 */
-extern uint32_t paging_enable(void);
+extern uint32_t pg_enable(void);
 
 /* Disable paging 
 Returns CR3 */
-extern uint32_t paging_disable(void);
+extern uint32_t pg_disable(void);
 
 /* get physical address mapped to linear address.
 Returns physical address
 Returns 0 if not mapped */
-extern uint32_t paging_get_physical(uint32_t linear_address);
+extern uint32_t pg_get_physical(uint32_t linear_address);
 
 #endif
