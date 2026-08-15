@@ -191,6 +191,11 @@ int vprintf(const char* restrict fmt, va_list args) {
                 }
             } break;
 
+            case '%': {
+                tty_putc('%');
+                count += 1;
+            } break;
+
             default: {
                 tty_putc('%');
                 tty_putc(*fmt);
