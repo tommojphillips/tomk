@@ -30,20 +30,4 @@ void tty_put_entry_at(char c, uint8_t color, size_t x, size_t y);
 c: the character to output. */
 void tty_putc(char c);
 
-/* Output character(s) to tty.
-data: the data to output.
-size: the size of the data. */
-void tty_putd(const char* data, size_t size);
-
-/* Output Null-Terminated string to tty.
-s: the string to output. */
-void tty_puts(const char* s);
-
-/* Output number in base to tty.
-number: the number to output.
-base:   the base to output the number in.
-lower:  1 = lower case; 0 = upper case
-2 (Binary), 8 (Octal), 10 (Decimal), 16 (Hexadecimal). */
-int tty_putn(uint64_t number, int base, int lower, int width, int precision, char pad, int left);
-
 #endif
