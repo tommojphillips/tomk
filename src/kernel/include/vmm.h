@@ -1,5 +1,7 @@
 /* vmm.h
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ *
+ * Virtual address memory manager
  */
 
 #ifndef _VMM_H
@@ -7,7 +9,9 @@
 
 #include <stdint.h>
 
-/* Initialize pmm */
+/* Initialize pmm 
+ base: virtual address base  
+ end: virtual address end */
 void vmm_init(uint32_t base, uint32_t end);
 
 /* Allocate page */

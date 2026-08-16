@@ -1,5 +1,7 @@
 /* vmm.c
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ *
+ * Virtual address memory manager
  */
 
 #include <stdint.h>

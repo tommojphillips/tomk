@@ -518,7 +518,7 @@ wait_ms:
     cmp eax, edx                       ; duration < elapsed ?
     jnc .done                          ; yes, done
     hlt                                ; no, wait for interrupt
-    jmp .lp                            ; we've woken up from an interrupt; check time.
+    jmp .lp                            ; An interrupt has woken us up; check time.
 
 .done:
     pop edx

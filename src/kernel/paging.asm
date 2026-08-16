@@ -263,14 +263,14 @@ pg_get_physical:
     add esp, 4
     
     test dword [eax], P      ; PDE present?
-    jz .done                 ; No, page not mapped; we done
+    jz .done                 ; No, page not mapped; done
     
     push esi                 ; linear_address     
     call pg_loc_pte          ; Locate PTE
     add esp, 4
 
     test dword [eax], P      ; PTE present?
-    jz .done                 ; No, page not mapped; we done
+    jz .done                 ; No, page not mapped; done
     
     mov eax, [eax]           ; frame = pte   
     and eax, 0xFFFFF000      ; frame &= 0xFFFFF000;    

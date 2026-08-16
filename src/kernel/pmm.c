@@ -1,5 +1,7 @@
 /* pmm.c
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ *
+ * Physical address memory manager
  */
 
 #include <stdint.h>

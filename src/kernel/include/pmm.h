@@ -1,5 +1,7 @@
 /* pmm.h
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ *
+ * Physical address memory manager
  */
 
 #ifndef _PMM_H
@@ -7,9 +9,11 @@
 
 #include <stdint.h>
 
+/* Kernel Memory Map */
 typedef struct kmmap_t kmmap_t;
 
-/* Initialize pmm */
+/* Initialize pmm 
+ kmmap: The kmmap */
 void pmm_init(const kmmap_t* kmmap);
 
 /* Allocate page */

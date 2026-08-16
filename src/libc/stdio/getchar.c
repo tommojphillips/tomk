@@ -1,3 +1,4 @@
+/* libc/stdio/getchar.c */
 
 #include <stdio.h>
 #include <ps2.h>
