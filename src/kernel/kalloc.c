@@ -1,7 +1,7 @@
 /* kalloc.c
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
  *
- * Bootstrap allocator.
+ * Bootstrap bump allocator.
  *
  * Allocations persist for the lifetime of the kernel and cannot be freed.
  * Intended only for early initialization and permanent kernel structures.
@@ -11,16 +11,7 @@
 #include <stddef.h>
 
 #include <kernel.h>
-
-#define KDBG
-#ifdef KDBG
-#include <stdio.h>
-#define kprint(...) printf(__VA_ARGS__)
-#else
-#define kprint(...)
-#endif
-
-#define KPANIC
+#include <assert.h>
 
 typedef struct kalloc_t {
 	uint32_t base;
@@ -37,15 +28,19 @@ static kalloc_t ka;
 #define ALIGN(t,x,a) (((t)(x) + (t)((a) - 1)) & ~((t)((a) - 1)))
 
 void kalloc_init(uint32_t base, uint32_t limit) {
+	assert((base & 0x00000FFF) == 0);
+	assert((limit & 0x00000FFF) == 0);
+
 	ka.base = base;
 	ka.next = base;
 	ka.limit = limit;
 	ka.enabled = 1;
 
-	kprint("[KALLOC] Init\n");
+	kprint("[KALLOC] Init u=%d b=%08X e=%08X l=%08X\n", limit >> 12, base, base + limit, limit);
 }
 void kalloc_disable(void) {
 	ka.enabled = 0;
+	ka.limit = ka.next - ka.base;
 }
 uint32_t kalloc_get_base(void) {
 	return ka.base;
@@ -72,7 +67,7 @@ void* kalloc_align(size_t size, size_t align) {
 	s = size;
 
 	if (((p - ka.base) + s) > ka.limit) {
-		kprint("[KALLOC] Alloc failed. Size = 0x%08X\n", s);
+		kprint("[KALLOC] Alloc failed. Size = %d\n", s);
 		return NULL;
 	}
 	
