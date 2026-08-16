@@ -7,7 +7,10 @@ int puts(const char* s) {
     if (s == NULL) {
         return EOF;
     }
-    tty_puts(s);
+    
+    while (*s) {
+		tty_putc(*s);
+        s++;        
+    }
     return 1;
 }
-
