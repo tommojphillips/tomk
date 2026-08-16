@@ -6,20 +6,19 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <pmm.h>
 #include <kmmap.h>
 #include <kalloc.h>
-
-#define KDBG
-#ifdef KDBG
-#define kprint(...) printf(__VA_ARGS__)
-#else
-#define kprint(...)
-#endif
+#include <kernel.h>
+#include <assert.h>
+#include <align.h>
 
 #define PAGE_SIZE 0x1000
+
+/* CEIL DIV */
+//#define CEIL_DIV(x,y) (((x) + (y) - 1) / (y))
+#define CEIL_DIV(x,y) (1 + (((x) - 1) / (y)))
 
 typedef struct pmm_t {
     uint32_t* bitmap;
@@ -29,195 +28,374 @@ typedef struct pmm_t {
     uint32_t usable_pages;
     uint32_t free_pages;
     uint32_t used_pages;
+    uint32_t hint;
+    uint32_t memory_end;
 } pmm_t;
 
 /* Physical Memory Manager */
-pmm_t pmm;
+static pmm_t pmm;
 
-static void pmm_set(uint32_t phys) {
-    pmm.bitmap[phys >> 5] |= 1u << (phys & 31);
-}
-static void pmm_clear(uint32_t phys) {
-    pmm.bitmap[phys >> 5] &= ~(1u << (phys & 31));
-}
-static int pmm_test(uint32_t phys) {
-    return pmm.bitmap[phys >> 5] & (1u << (phys & 31));
-}
-
-void pmm_mark_free(uint64_t phys, uint64_t size) {
-    uint64_t start = (phys + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
-    uint64_t end   = (phys + size) & ~(uint64_t)(PAGE_SIZE - 1);
-
-    for (uint64_t p = start; p < end; p += PAGE_SIZE) {
-        uint32_t page = (uint32_t)(p >> 12);
-        
-        if (page >= pmm.total_pages) {
-            continue;
-        }
-
-        if (pmm_test(page)) {
-            pmm_clear(page);
-            pmm.free_pages++;
-            pmm.used_pages--;
-        }
-    }
-}
-void pmm_mark_used(uint64_t phys, uint64_t size) {
-    uint64_t start = phys & ~(uint64_t)(PAGE_SIZE - 1);
-    uint64_t end = (phys + size + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
-
-    for (uint64_t p = start; p < end; p += PAGE_SIZE) {
-        uint32_t page = (uint32_t)(p >> 12);
-
-        if (page >= pmm.total_pages) {
-            continue;
-        }
-
-        if (!pmm_test(page)) {
-            pmm_set(page);
-            pmm.free_pages--;
-            pmm.used_pages++;
-        }
-    }
-}
-void pmm_mark_reserved(uint64_t phys, uint64_t size) {
-    uint64_t start = phys & ~(uint64_t)(PAGE_SIZE - 1);
-    uint64_t end = (phys + size + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
-
-    for (uint64_t p = start; p < end; p += PAGE_SIZE) {
-        uint32_t page = (uint32_t)(p >> 12);
-
-        if (page >= pmm.total_pages) {
-            continue;
-        }
-
-        if (!pmm_test(page)) {
-            pmm_set(page);
-            pmm.free_pages--;
-            pmm.usable_pages--;
-        }
-    }
-}
+static void pmm_set(uint32_t phys);
+static void pmm_clear(uint32_t phys);
+static int pmm_test(uint32_t phys);
+static uint32_t pmm_alloc_one(void);
+static uint32_t pmm_find_contiguous_pages(size_t count);
 
 void pmm_init(const kmmap_t* kmmap) {
-    uint64_t memory_end = 0;
-
+    assert(kmmap != NULL);
+    
     /* Find the highest usable physical address */
+    pmm.memory_end = 0;
     pmm.usable_pages = 0;
     for (size_t i = 0; i < kmmap->count; ++i) {
-        if (!(kmmap->regions[i].flags & KMREGION_FLAG_VALID)) {
+        if (!(kmmap->regions[i].flags & KMREGION_VALID)) {
             continue;
         }
-        if ((kmmap->regions[i].flags & KMREGION_FLAG_AR_MASK) != KMREGION_FLAG_AR_RW) {
+        if ((kmmap->regions[i].flags & KMREGION_TYPE_MASK) != KMREGION_TYPE_RAM) {
             continue;
         }
         
-        uint64_t end = kmmap->regions[i].address + kmmap->regions[i].size;
+        uint32_t end = kmmap->regions[i].address + kmmap->regions[i].size;
 
-        if (end > memory_end) {
-            memory_end = end;
+        if (end > pmm.memory_end) {
+            pmm.memory_end = end;
         }
 
-        uint64_t start_page = (kmmap->regions[i].address + PAGE_SIZE - 1) & ~(uint64_t)(PAGE_SIZE - 1);
-        uint64_t end_page = end & ~(uint64_t)(PAGE_SIZE - 1);
+        uint32_t start_page = ALIGN(uint32_t, kmmap->regions[i].address, PAGE_SIZE);
+        uint32_t end_page = end & ~(uint32_t)(PAGE_SIZE - 1);
 
         if (end_page > start_page) {
             pmm.usable_pages += (uint32_t)((end_page - start_page) >> 12);
         }
     }
 
-    pmm.total_pages = (uint32_t)((memory_end + PAGE_SIZE - 1) >> 12);
-    pmm.bitmap_size = ((pmm.total_pages + 31) >> 5) * sizeof(uint32_t);
+    pmm.total_pages = (uint32_t)((pmm.memory_end + PAGE_SIZE - 1) >> 12);
+    pmm.bitmap_size = CEIL_DIV(pmm.total_pages, 32) * sizeof(uint32_t);
     pmm.free_pages = 0;
     pmm.used_pages = pmm.usable_pages;
-    pmm.bitmap = kalloc(pmm.bitmap_size);
+    pmm.hint = 0;
 
-    /* Mark all RAM used */
+    pmm.bitmap = kalloc(pmm.bitmap_size);
+    assert(pmm.bitmap != NULL);
+
+    /* Mark all physical addresses used */
     memset(pmm.bitmap, 0xFF, pmm.bitmap_size);
     
-    /* Mark usable RAM free */
+    /* Find all usable RAM regions in kmmap and mark those pages free in PMM */
     for (size_t i = 0; i < kmmap->count; ++i) {
-        if (!(kmmap->regions[i].flags & KMREGION_FLAG_VALID)) {
+        if (!(kmmap->regions[i].flags & KMREGION_VALID)) {
             continue;
         }
-        if ((kmmap->regions[i].flags & KMREGION_FLAG_AR_MASK) != KMREGION_FLAG_AR_RW) {
+        if ((kmmap->regions[i].flags & KMREGION_TYPE_MASK) != KMREGION_TYPE_RAM) {
             continue;
         }
         
         pmm_mark_free(kmmap->regions[i].address, kmmap->regions[i].size);
     }
+
+    /* Since 0 is used to signal an error condition in the allocation functions.
+    Zero page cannot be used for allocations. */
+    pmm_mark_used(0x00000000, 0x1000);
+
+	kprint("[PMM] Init u=%-7d b=%08X e=%08X l=%08X\n", pmm.usable_pages, 0, pmm.memory_end, 0);
 }
 
-uint32_t pmm_alloc(void) {
-    uint32_t bits;
-    uint32_t bit;
-    uint32_t dword;
-    uint32_t page;
-    uint32_t addr;
-    for (dword = 0; dword < pmm.bitmap_size / sizeof(uint32_t); dword++) {
-        bits = pmm.bitmap[dword];
+uint32_t pmm_alloc(size_t count) {
+    /* Contiguous physical addresses */
 
+    if (count == 0) {
+        return 0;
+    }
+    
+    if (count > pmm.free_pages) {
+        kprint("[PMM] Error out of pages\n");
+        return 0;
+    }
+    
+    /* If just 1 page is requested, skip the contiguous run calculations */
+    if (count == 1) {
+        return pmm_alloc_one();
+    }
+    
+    /* Multiple pages have been requested. Figure out were the next contiguous block of physical pages are */
+    uint32_t start = pmm_find_contiguous_pages(count);
+    if (start == 0) {
+        kprint("[PMM] Fragmentation error: %u\n", count);
+        return 0;
+    }
+
+    /* Mark pages used */
+    for (size_t i = 0; i < count; i++) {
+        pmm_set((start + i) << 12);
+    }
+
+    pmm.free_pages -= count;
+    pmm.used_pages += count;
+
+    return start << 12;
+}
+void pmm_free(uint32_t phys, size_t count) {    
+    if (count == 0) {
+        return;
+    }
+    
+    /* Physical address must be page aligned */
+    if (phys & (PAGE_SIZE - 1)) {
+        kprint("[PMM] Error mis-aligned page: %8.8X\n", phys);
+        return;
+    }
+    
+    uint32_t page = phys >> 12;
+
+    /* Page must be managed by PMM */
+    if (page >= pmm.total_pages || count > pmm.total_pages - page) {
+        kprint("[PMM] Error address out of bounds: %8.8X\n", phys);
+        return;
+    }
+
+    /* Validate that all pages are in use */
+    for (size_t i = 0; i < count; i++) {
+        if (!pmm_test(phys + i * PAGE_SIZE)) {
+            kprint("[PMM] Error double free page: %8.8X\n", phys + i * PAGE_SIZE);
+            return;
+        }
+    }
+
+    /* Mark pages free */
+    for (size_t i = 0; i < count; i++) {
+        pmm_clear(phys + i * PAGE_SIZE);
+    }
+
+    pmm.free_pages += count;
+    pmm.used_pages -= count;
+}
+
+void pmm_mark_free(uint32_t phys, size_t size) {
+    if (phys < 0x1000 || phys > pmm.memory_end) {
+        return;
+    }
+
+    /* Only 4096-byte regions can be marked using the bitmap. Compute the usable size.
+     Since pages are being marked as free, round end down to the nearest page. */
+    uint32_t start = ALIGN(uint32_t, phys, PAGE_SIZE);
+    uint32_t end = (phys + size) & ~(uint32_t)(PAGE_SIZE - 1);
+
+    for (uint32_t p = start; p < end; p += PAGE_SIZE) {
+        uint32_t page = p >> 12;
+        
+        if (page >= pmm.total_pages) {
+            continue;
+        }
+
+        if (pmm_test(p)) {
+            pmm_clear(p);
+            pmm.free_pages++;
+            pmm.used_pages--;
+        }
+    }
+
+    kprint("[PMM] Mark free: %08X-%08X\n", start, end);
+}
+void pmm_mark_used(uint32_t phys, size_t size) {    
+    if (phys < 0x1000 || phys > pmm.memory_end) {
+        return;
+    }
+
+    /* Only 4096-byte regions can be marked using the bitmap. Compute the usable size.
+     Since pages are being marked as used, round end up to the nearest page. */
+    uint32_t start = ALIGN(uint32_t, phys, PAGE_SIZE);
+    uint32_t end = ALIGN(uint32_t, phys + size, PAGE_SIZE);
+
+    for (uint32_t p = start; p < end; p += PAGE_SIZE) {
+        uint32_t page = p >> 12;
+
+        if (page >= pmm.total_pages) {
+            continue;
+        }
+
+        if (!pmm_test(p)) {
+            pmm_set(p);
+            pmm.free_pages--;
+            pmm.used_pages++;
+        }
+    }
+
+    kprint("[PMM] Mark used: %08X-%08X\n", start, end);
+}
+
+uint32_t pmm_get_free(void) {
+    return pmm.free_pages;
+}
+uint32_t pmm_get_total(void) {
+    return pmm.total_pages;
+}
+uint32_t pmm_get_used(void) {
+    return pmm.used_pages;
+}
+uint32_t pmm_get_usable(void) {
+    return pmm.usable_pages;
+}
+
+static void pmm_set(uint32_t phys) {
+    uint32_t page = phys >> 12;
+    pmm.bitmap[page >> 5] |= 1u << (page & 31);
+}
+static void pmm_clear(uint32_t phys) {
+    uint32_t page = phys >> 12;
+    pmm.bitmap[page >> 5] &= ~(1u << (page & 31));
+}
+static int pmm_test(uint32_t phys) {
+    uint32_t page = phys >> 12;
+    return pmm.bitmap[page >> 5] & (1u << (page & 31));
+}
+static uint32_t pmm_alloc_one(void) {
+    /* Search for a free page 32 pages at a time. */
+
+    if (pmm.free_pages == 0) {
+        return 0;
+    }
+
+    if (pmm.hint >= pmm.total_pages) {
+        pmm.hint = 0;
+    }
+
+    uint32_t page = pmm.hint;
+    uint32_t start = pmm.hint >> 5;
+
+    /* Search from hint to end 
+     * [start] 11111111 11111111 11111111 11100000 [end]
+     *                                  ^ hint
+     *                   search ------->              */
+    for (uint32_t dword = start; dword < pmm.bitmap_size / sizeof(uint32_t); dword++) {
+        assert(pmm.bitmap != NULL);
+
+        uint32_t bits = pmm.bitmap[dword];
+
+        /* Ignore pages before hint in the first dword */
+        if (dword == start) {
+            bits |= (1U << (page & 31)) - 1;
+        }
+
+        /* Skip dword if there are no allocations left */
+        if (bits == 0xFFFFFFFF) {
+            continue;
+        }
+        
+        /* Find first zero bit */
+        uint32_t free_bits = ~bits;
+        uint32_t b = 0;
+
+        while (!(free_bits & 1U)) {            
+            free_bits >>= 1;
+            b++;
+        }
+
+        page = (dword << 5) + b;
+
+        if (page >= pmm.total_pages) {
+            break;
+        }
+
+        pmm_set(page << 12);
+
+        pmm.free_pages--;
+        pmm.used_pages++;
+
+        pmm.hint = page + 1;
+
+        if (pmm.hint >= pmm.total_pages) {
+            pmm.hint = 0;
+        }
+
+        return page << 12;
+    }
+
+    /* Search from start to hint 
+     * [start] 11111111 11111111 11111111 11100000 [end]
+     *                                  ^ hint
+     *                                  <------ search */
+    for (uint32_t dword = 0; dword <= start; dword++) {
+        uint32_t bits = pmm.bitmap[dword];
+
+        /* Ignore pages at and after hint in the final dword */
+        if (dword == start) {
+            bits |= ~((1U << (page & 31)) - 1);
+        }
+
+        /* Skip dword if there are no allocations left */
         if (bits == 0xFFFFFFFF) {
             continue;
         }
 
-        for (bit = 0; bit < 32U; bit++) {
+        /* Find first zero bit */
+        uint32_t free_bits = ~bits;
+        uint32_t b = 0;
+
+        while (!(free_bits & 1U)) {
+            free_bits >>= 1;
+            b++;
+        }
+
+        page = (dword << 5) + b;
+
+        if (page >= pmm.total_pages) {
+            return 0;
+        }
+
+        pmm_set(page << 12);
+
+        pmm.free_pages--;
+        pmm.used_pages++;
+
+        pmm.hint = page + 1;
+
+        if (pmm.hint >= pmm.total_pages) {
+            pmm.hint = 0;
+        }
+
+        return page << 12;
+    }
+
+    return 0;
+}
+static uint32_t pmm_find_contiguous_pages(size_t count) {
+    /* Find a contiguous range of physical pages */
+    assert(pmm.bitmap != NULL);
+    assert(pmm.bitmap_size != 0);
+
+    uint32_t start = 0;
+    uint32_t run = 0;
+    uint32_t len = pmm.bitmap_size / sizeof(uint32_t);
+
+    if (count == 0) {
+        return 0;
+    }
+
+    for (uint32_t dword = 0; dword < len; dword++) {
+        uint32_t bits = pmm.bitmap[dword];
+
+        for (uint32_t bit = 0; bit < 32U; bit++) {
+            uint32_t page = (dword << 5) + bit;
+
+            if (page >= pmm.total_pages) {
+                break;
+            }
+
             if (bits & (1U << bit)) {
+                run = 0;
                 continue;
             }
 
-            page = (dword << 5U) + bit;
-            if (page >= pmm.total_pages) {
-                kprint("[PMM] Error out of pages\n");
-                return 0;
+            if (run == 0) {
+                start = page;
             }
-            addr = page << 12;
 
-            pmm_set(page);
-            pmm.free_pages--;
-            pmm.used_pages++;
-            return addr;
+            run++;
+
+            if (run == count) {
+                return start;
+            }
         }
     }
-
-    kprint("[PMM] Error out of pages\n");
     return 0;
-}
-void pmm_free(uint32_t address) {
-    uint32_t page = address >> 12;
-
-    /* Must be within limits */
-    if (page >= pmm.total_pages) {
-        kprint("[PMM] Error address out of bounds: %8.8X\n", address);
-        return;
-    }
-
-    /* Must be page-aligned */
-    if (address & (PAGE_SIZE - 1)) {
-        kprint("[PMM] Error mis-aligned page: %8.8X\n", address);
-        return;
-    }
-
-    /* Check for double free */
-    if (!pmm_test(page)) {
-        kprint("[PMM] Error double free page: %8.8X\n", address);
-        return;
-    }
-
-    pmm_clear(page);
-    pmm.free_pages++;
-    pmm.used_pages--;
-}
-
-uint32_t pmm_get_free_pages(void) {
-    return pmm.free_pages;
-}
-uint32_t pmm_get_total_pages(void) {
-    return pmm.total_pages;
-}
-uint32_t pmm_get_used_pages(void) {
-    return pmm.used_pages;
-}
-uint32_t pmm_get_usable_pages(void) {
-    return pmm.usable_pages;
 }

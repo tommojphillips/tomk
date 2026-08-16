@@ -8,6 +8,7 @@
 #define _PMM_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 /* Kernel Memory Map */
 typedef struct kmmap_t kmmap_t;
@@ -16,31 +17,40 @@ typedef struct kmmap_t kmmap_t;
  kmmap: The kmmap */
 void pmm_init(const kmmap_t* kmmap);
 
-/* Allocate page */
-uint32_t pmm_alloc(void);
+/* Allocate contiguous pages
+ count: requested page count
+ Returns: physical page address if successfull, otherwise 0. */
+uint32_t pmm_alloc(size_t count);
 
-/* Free page */
-void pmm_free(uint32_t phys);
+/* Free contiguous pages
+ phys: physical page address
+ count: allocated page count */
+void pmm_free(uint32_t phys, size_t count);
 
-/* Get free pages */
-uint32_t pmm_get_free_pages(void);
+/* Get free pages
+ Returns: free physical pages */
+uint32_t pmm_get_free(void);
 
-/* Get used pages */
-uint32_t pmm_get_used_pages(void);
+/* Get used pages
+ Returns: used physical pages */
+uint32_t pmm_get_used(void);
 
-/* Get total pages */
-uint32_t pmm_get_total_pages(void);
+/* Get total pages
+ Returns: total physical pages, including reserved physical pages */
+uint32_t pmm_get_total(void);
 
-/* Get usable pages */
-uint32_t pmm_get_usable_pages(void);
+/* Get usable pages
+ Returns: usable physical pages, excluding reserved physical pages  */
+uint32_t pmm_get_usable(void);
 
-/* Mark page(s) free */
-void pmm_mark_free(uint64_t phys, uint64_t size);
+/* Mark physical page(s) free
+ phys: physical page address
+ size: region size (in bytes) */
+void pmm_mark_free(uint32_t phys, size_t size);
 
-/* Mark page(s) used */
-void pmm_mark_used(uint64_t phys, uint64_t size);
-
-/* Mark page(s) reserved */
-void pmm_mark_reserved(uint64_t phys, uint64_t size);
+/* Mark physical page(s) used
+ phys: physical page address
+ size: region size (in bytes) */
+void pmm_mark_used(uint32_t phys, size_t size);
 
 #endif
