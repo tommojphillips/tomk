@@ -10,6 +10,7 @@ void* memset(void* dest, int ch, size_t count);
 char* strcpy(char* restrict dest, const char* restrict src);
 size_t strlen(const char* str);
 
-int strcmp(const char* s1, const char* s2);
+int strcmp(const char* restrict s1, const char* restrict s2);
+int strncmp(const char* restrict s1, const char* restrict s2, size_t size);
 
 #endif
