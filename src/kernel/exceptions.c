@@ -8,86 +8,93 @@
 #include <string.h>
 #include <i86.h>
 #include <paging.h>
+#include <i80386_mnem.h>
 
 void print_cpu_state(cpu_state_t* state) {
-    printf("LA  = 0x%X:0x%X\nF   = 0x%X\nCR0 = 0x%X\nCR2 = 0x%X\nCR3 = 0x%X\nEAX = 0x%X\nECX = 0x%X\nEDX = 0x%X\nEBX = 0x%X\n" \
+    char buffer[32] = {0};
+    i80386_mnem_get_str(state->int_eip, buffer, 32);
+    printf(" at\n0x%X:0x%X: %s\n", state->int_cs, state->int_eip, buffer);
+    printf("\nF   = 0x%X\nCR0 = 0x%X\nCR2 = 0x%X\nCR3 = 0x%X\nEAX = 0x%X\nECX = 0x%X\nEDX = 0x%X\nEBX = 0x%X\n" \
         "ESP = 0x%X\nEBP = 0x%X\nESI = 0x%X\nEDI = 0x%X\n" \
         "CS  = 0x%X\nSS  = 0x%X\nES  = 0x%X\nDS  = 0x%X\nFS  = 0x%X\nGS  = 0x%X\n", 
-        state->int_cs, state->int_eip, state->int_eflags, state->cr0, state->cr2, state->cr3,
+        state->int_eflags, state->cr0, state->cr2, state->cr3,
         state->eax, state->ecx, state->edx, state->ebx,
         state->esp, state->ebp, state->esi, state->edi,
         state->cs, state->ss, state->es, state->ds, state->fs, state->gs);
 }
 void exception_dbz(cpu_state_t* state) {
     /* DBZ - ITC 0 */
-    printf("\n#DBZ:\n");
+    printf("\n#DBZ");
     print_cpu_state(state);
 }
 void exception_trap(cpu_state_t* state) {
     /* TRAP - ITC 1 */
-    printf("\n#TRAP:\n");
+    printf("\n#TRAP");
     print_cpu_state(state);
 }
 void exception_nmi(cpu_state_t* state) {
     /* NMI - ITC 2 */
-    printf("\n#NMI:\n");
+    printf("\n#NMI");
     print_cpu_state(state);
 }
 void exception_int3(cpu_state_t* state) {
     /* INT3 - ITC 3 */
-    printf("\n#INT3:\n");
+    printf("\n#INT3");
     print_cpu_state(state);
 }
 void exception_of(cpu_state_t* state) {
     /* OF - ITC 4 */
-    printf("\n#OF:\n");
+    printf("\n#OF");
     print_cpu_state(state);
 }
 void exception_bound(cpu_state_t* state) {
     /* BOUND - ITC5 */
-    printf("\n#BOUND:\n");
+    printf("\n#BOUND");
     print_cpu_state(state);
 }
 void exception_ud(cpu_state_t* state) {
     /* Undefined fault */
-    printf("\n#UD:\n");
+    printf("\n#UD");
     print_cpu_state(state);
 }
 void exception_df(cpu_state_t* state) {
     /* Double fault */
-    printf("\n#DF(%X):\n", state->int_error);
+    printf("\n#DF(%X)", state->int_error);
     print_cpu_state(state);
 }
 void exception_ts(cpu_state_t* state) {
     /* Task segment fault */
-    printf("\n#TS(%X):\n", state->int_error);
+    printf("\n#TS(%X)", state->int_error);
     print_cpu_state(state);
 }
 void exception_np(cpu_state_t* state) {
     /* Not present fault */
-    printf("\n#NP(%X):\n", state->int_error);
+    printf("\n#NP(%X)", state->int_error);
     print_cpu_state(state);
 }
 void exception_ss(cpu_state_t* state) {
     /* Stack segment fault */
-    printf("\n#SS(%X):\n", state->int_error);
+    printf("\n#SS(%X)", state->int_error);
     print_cpu_state(state);
 }
 void exception_gp(cpu_state_t* state) {
     /* General protection fault */
-    printf("\n#GP(%X):\n", state->int_error);
+    printf("\n#GP(%X)", state->int_error);
     print_cpu_state(state);
 }
 void exception_pf(cpu_state_t* state) {
     /* Page fault */
 
     /* Treat unmapped addresses in the first page as a NULL pointer dereference */
-    if (!(state->int_error & PTE_P) && (state->cr2 & 0x00000FFF) == 0) {
-        printf("\nFATAL: NULL pointer dereference at EIP 0x%08X (%c)\n", state->int_eip,
-            (state->int_error & PTE_RW) ? 'W' : 'R');
+    if (!(state->int_error & PTE_P) && (state->cr2 & 0xFFFFF000) == 0) {
+        char buffer[32] = {0};
+        i80386_mnem_get_str(state->int_eip, buffer, 32);
+        
+        printf("\nNULL pointer dereference at\n0x%08X: %s\n", state->int_eip, buffer);
+        //printf(" (%c)\n", (state->int_error & PTE_RW) ? 'W' : 'R');
     }
     else {
-        printf("\n#PF(%X): %s, %s, %s, 0x%8.8X\n", state->int_error,
+        printf("\n#PF(%X) %s, %s, %s, 0x%8.8X", state->int_error,
             (state->int_error & PTE_P) ? "P" : "NP",
             (state->int_error & PTE_RW) ? "Wr" : "Rd",
             (state->int_error & PTE_US) ? "U" : "S",
