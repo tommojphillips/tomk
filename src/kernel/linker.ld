@@ -5,7 +5,7 @@ SECTIONS {
     . = 0x00100000;
 
     . = ALIGN(4K);
-    kstart = .;
+    sec_kstart = .;
 
     . = ALIGN(4K);
     sec_multiboot_start = .;
@@ -64,5 +64,5 @@ SECTIONS {
     sec_bss_end = .;
 
     . = ALIGN(4K);
-    kend = .;
+    sec_kend = .;
 }
