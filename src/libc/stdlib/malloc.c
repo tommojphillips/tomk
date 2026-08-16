@@ -2,10 +2,17 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifdef LIBK
+#include <kheap.h>
+#endif
+
 void* malloc(size_t size) {
-    (void)size;
-    return NULL;
+#ifdef LIBK
+    return kmalloc(size);
+#endif
 }
-void free(void* pointer) {
-    (void)pointer;
+void free(void* ptr) {
+#ifdef LIBK
+    kfree(ptr);
+#endif
 }
