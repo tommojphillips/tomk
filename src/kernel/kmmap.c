@@ -6,21 +6,15 @@
 #include <stddef.h>
 
 #include <kmmap.h>
-#include <kernel.h>
 #include <assert.h>
-#include <kalloc.h>
 
-void kmmap_init(kmmap_t** kmmap, size_t size) {
+void kmmap_init(kmmap_t* kmmap) {
 	assert(kmmap != NULL);
-	*kmmap = kalloc(size);	
-	assert(*kmmap != NULL);
-	(*kmmap)->count = 0;
-	(*kmmap)->capacity = (size - sizeof(kmmap_t)) / sizeof(kmregion_t);
-	(*kmmap)->regions = (kmregion_t*)((char*)*kmmap + sizeof(kmmap_t));
+	memset(kmmap, 0, sizeof(kmmap_t));
 }
 void kmmap_add(kmmap_t* kmmap, uint64_t address, uint64_t size, uint32_t flags) {
 	assert(kmmap != NULL);
-	assert(kmmap->count < kmmap->capacity);
+	assert(kmmap->count < KMMAP_MAX_REGIONS);
 	kmmap->regions[kmmap->count].address = address;
 	kmmap->regions[kmmap->count].size = size;
 	kmmap->regions[kmmap->count].flags = flags | KMREGION_VALID;
