@@ -3,8 +3,10 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <tty.h>
+#include <uart.h>
 
 #define MAX_BUFFER_SIZE 64
 
@@ -26,6 +28,10 @@ static const char* hex_digits_u = "0123456789ABCDEF";
 static const char* hex_digits_l = "0123456789abcdef";
 static char buffer[MAX_BUFFER_SIZE];
 
+static void serial_output(void* userparam, char c) {
+    (void)userparam;
+    serial_write(c);
+}
 static void tty_output(void* userparam, char c) {
     (void)userparam;
     tty_putc(c);
@@ -377,6 +383,34 @@ int printf(const char* restrict fmt, ...) {
     va_list args;
     va_start(args, fmt);
     int count = vprintf(fmt, args);
+    va_end(args);
+    return count;
+}
+
+int vfprintf(print_dest_t stream, const char* restrict fmt, va_list args) {
+    printf_output_t out;
+
+    switch (stream) {
+        case STDIO:
+            out.putc = tty_output;
+            break;
+        case SERIAL:
+            out.putc = serial_output;
+            break;
+        default:
+            return -1;
+    }
+
+    out.userparam = NULL;
+    out.count = 0;
+
+    vformat(&out, fmt, args);
+    return (int)out.count;
+}
+int fprintf(print_dest_t stream, const char* restrict fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int count = vfprintf(stream, fmt, args);
     va_end(args);
     return count;
 }
