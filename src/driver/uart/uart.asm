@@ -14,6 +14,7 @@ section .text
 
 serial_init:
     push edx
+
     mov al, 0x00
     mov dx, PORT+1
     out dx, al                                   ; disable all interrupts    
@@ -70,16 +71,21 @@ serial_init:
 serial_read:
     push edx
 
-    xor eax, eax
-
-    mov dx, PORT+5    
+    mov dx, PORT+5
     in al, dx
 
     test al, 0x01                                ; byte received?
-    jz .done                                     ; no, done
+    jz .err                                      ; no, done
     
+    xor eax, eax
     mov dx, PORT+0
     in al, dx                                    ; read byte
+    jmp .done
+
+.err:
+    pop edx
+    xor eax, eax
+    ret
 
 .done:
     pop edx
