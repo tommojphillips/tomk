@@ -13,4 +13,7 @@ size_t strlen(const char* str);
 int strcmp(const char* restrict s1, const char* restrict s2);
 int strncmp(const char* restrict s1, const char* restrict s2, size_t size);
 
+int stricmp(const char* restrict s1, const char* restrict s2);
+int strincmp(const char* restrict s1, const char* restrict s2, size_t size);
+
 #endif
