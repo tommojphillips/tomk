@@ -7,7 +7,10 @@
 BITS 32
 
 MB_MAGIC    equ 0x1BADB002
-MB_FLAGS    equ ((1 << 0) | (1 << 1) | (1 << 5) | (1 << 6))
+MB_4KB      equ (1 << 0)
+MB_MMAP     equ (1 << 1)
+
+MB_FLAGS    equ (MB_4KB | MB_MMAP)
 MB_CHECKSUM equ (0 - (MB_MAGIC + MB_FLAGS))
  
 section .multiboot
