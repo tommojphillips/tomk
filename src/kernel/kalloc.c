@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <kernel.h>
 #include <assert.h>
 #include <paging.h>
 
@@ -36,8 +35,6 @@ void kalloc_init(uint32_t base, uint32_t limit) {
 	ka.next = base;
 	ka.limit = limit;
 	ka.enabled = 1;
-
-	kprint("[KALLOC] Init u=%d b=%08X e=%08X l=%08X\n", limit >> 12, base, base + limit, limit);
 }
 void kalloc_disable(void) {
 	ka.enabled = 0;
@@ -68,7 +65,6 @@ void* kalloc_align(size_t size, size_t align) {
 	s = size;
 
 	if (((p - ka.base) + s) > ka.limit) {
-		kprint("[KALLOC] Alloc failed. Size = %d\n", s);
 		return NULL;
 	}
 	
