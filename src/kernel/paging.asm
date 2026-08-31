@@ -9,266 +9,283 @@
 
 BITS 32
 
-extern kalloc_page
-extern kernel_panic
-
-global pd_base
-global pg_init
-global pg_enable
-global pg_disable
 global pg_map
+global pg_unmap
 global pg_flush
 global pg_invalidate
-global pg_get_physical
+global pg_virt2phys
+global pg_chgpriv
+global pg_pd
+global pg_pt
 
 %include "src\kernel\include\common.inc"
 %include "src\kernel\include\paging.inc"
 
-Section .rodata
-    init_error_str db "[PG] Error, kalloc failed", 0
-
+; Page directory / Page tables
 Section .bss
-    pd_base dd ?
+    align 4096, db 0
+pg_pd:
+    resb 4096
+pg_pt:
+    resb 4096*1024
 
 Section .text
 
-; Init page directory and page table
-pg_init:
-    push edx
-    push edi
-
-    push (PD_SIZE+PT_SIZE)
-    call kalloc_page
-    add esp, 4
-
-    test eax, eax             ; NULL?
-    jz .error                 ; yes, error
-
-.set_pd_base:
-    mov [pd_base], eax
-    mov edx, eax               ; pd_base
-
-.zero_pd_pt:
-    cld                        ; zero PD/PT (PD_BASE, 0, 4096+(4096*1024));
-    xor eax, eax
-    mov ecx, (PD_SIZE+PT_SIZE)/4
-    mov edi, edx
-    rep stosd
-
-.set_cr3:
-    mov eax, edx               ; pd_base
-    mov cr3, eax               ; load page directory address into cr3    
-
-    jmp .done
-
-.error:
-    push init_error_str
-    call kernel_panic          ; doesnt return
-
-.done:
-    pop edi
-    pop edx
-    ret
-
-; Enable paging
-; Returns CR3
-pg_enable:
-    mov eax, cr0
-    or eax, 0x80000000         ; PG bit
-    mov cr0, eax
-
-    jmp short .flush
-.flush:
-    ret
-
-; Disable paging
-; Returns CR3
-pg_disable:
-    mov eax, cr0
-    and eax, 0x7FFFFFFF         ; PG bit
-    mov cr0, eax
-
-    jmp short .flush
-.flush:
-    ret
-
 ; map single page
-; esp+8  = linear_address
-; esp+12 = physical_address
-; esp+16 = flags (lower 12bits)
+; esp+4  = virtual_address
+; esp+8  = physical_address
+; esp+12 = flags (lower 12bits)
 _map_page:
     push ebx
-    push edx
     push esi
     push edi
 
-    mov edx, [pd_base]    
-    mov esi, [esp+16+4]
-    mov edi, [esp+16+8]
-    mov ebx, [esp+16+12]
+    mov esi, [esp+12+4]                          ; virtual_address
+    mov edi, [esp+12+8]                          ; physical_address
+    mov ebx, [esp+12+12]                         ; flags
 
 .loc_pde:
-    push esi
-    call pg_loc_pde
+    push esi                   
+    call pg_loc_pde                              ; get PDE pointer in EAX
     add esp, 4
 
-    test dword [eax], P
-    jnz .loc_pte
+    test dword [eax], P                          ; pde present?
+    jnz .loc_pte                                 ; yes, skip building pde
 
 .build_pde:
-    mov ecx, esi               ; pd_index = linear_address >> 22
-    shr ecx, 22
-    shl ecx, 12
-    add ecx, edx
-    add ecx, PD_SIZE
-    or ecx, US | RW | P        ; set flags
-    mov [eax], ecx             ; write pde
+    mov ecx, esi                                 ; pde = virtual_address
+    shr ecx, 10                                  ; pde >>= 10
+    and ecx, 0xFFFFF000                          ; pde &= 0xFFFFF000
+    add ecx, pg_pt                               ; pde += pg_pt (physical address)
+    or ecx, (RW | P)                             ; pde |= (PTE_P | PTE_RW)
+    mov [eax], ecx                               ; write pde
 
 .loc_pte:
     push esi
-    call pg_loc_pte
+    call pg_loc_pte                              ; get PTE pointer in EAX
     add esp, 4
 
-.build_pte:                    ; build pte
-    mov ecx, edi               ; get physical_address
-    and ecx, 0xFFFFF000        ; clear lower 12bits
-    and ebx, 0x00000FFF        ; clear upper 20bits in flags
-    or ecx, ebx                ; set upper 20bits to physical_frame_address
-    mov [eax], ecx             ; copy pte to memory 
+.build_pte:
+    mov ecx, edi                                 ; pte = physical_address
+    and ecx, 0xFFFFF000                          ; pte &= 0xFFFFF000
+    and ebx, 0x00000FFF                          ; flags &= 0x00000FFF
+    or ebx, P                                    ; pte |= P
+    or ecx, ebx                                  ; pte |= flags
+    mov [eax], ecx                               ; write pte
 
 .done:
     pop edi
     pop esi
-    pop edx
     pop ebx
     ret
 
+; unmap single page
+; esp+4  = virtual_address
+_unmap_page:
+    push esi
+
+    mov esi, [esp+4+4]                          ; virtual_address
+
+.loc_pde:
+    push esi                   
+    call pg_loc_pde                              ; get PDE pointer in EAX
+    add esp, 4
+
+    test dword [eax], P                          ; pde present?
+    jz .done                                     ; no, done
+
+.loc_pte:
+    push esi
+    call pg_loc_pte                              ; get PTE pointer in EAX
+    add esp, 4
+
+    test dword [eax], P                          ; pte present?
+    jz .done                                     ; no, done
+    
+.build_pte:
+    mov [eax], NP                                ; write pte
+
+.done:
+    pop esi
+    ret
+
 ; map contiguous pages
-; esp+4  = linear_address
+; esp+4  = virtual_address
 ; esp+8  = physical_address
 ; esp+12 = flags (lower 12bits)
 ; esp+16 = count (in 4096-byte units)
 pg_map:
-    push ebp                           ; save ebp
-    mov ebp, esp                       ; save frame ptr
-    add ebp, 4                         ; point frame ptr at params-4
+    push ebp                                     ; save ebp
+    mov ebp, esp                                 ; save frame ptr
+    add ebp, 4                                   ; point frame ptr at params-4
 
-    cmp dword [ebp+16], 0              ; count == zero?
-    jz .done                           ; yes, dont map anything.
+    cmp dword [ebp+16], 0                        ; count == zero?
+    jz .done                                     ; yes, dont map any pages
 
-.nxt:
-    push dword [ebp+12]                ; flags (lower 12bits)
-    push dword [ebp+8]                 ; physical_address
-    push dword [ebp+4]                 ; linear_address
-    call _map_page
+.nxt:                                            ; map next page
+    push dword [ebp+12]                          ; flags (lower 12bits)
+    push dword [ebp+8]                           ; physical_address
+    push dword [ebp+4]                           ; virtual_address
+    call _map_page                               ; map page
     add esp, 12
 
-    add dword [ebp+4], PAGE_SIZE       ; linear_address += 4096
-    add dword [ebp+8], PAGE_SIZE       ; physical_address += 4096
-    dec dword [ebp+16]
-    
-    jnz .nxt
+    add dword [ebp+4], PAGE_SIZE                 ; virtual_address += 4096
+    add dword [ebp+8], PAGE_SIZE                 ; physical_address += 4096
+    dec dword [ebp+16]                           ; count -= 1    
+    jnz .nxt                                     ; count > 0?
 
 .done:
-    pop ebp                            ; restore ebp
+    pop ebp                                      ; restore ebp
+    ret
+
+; unmap contiguous pages
+; esp+4 = virtual_address
+; esp+8 = count (in 4096-byte units)
+pg_unmap:
+    push esi
+    push ebx
+
+    mov esi, [esp+8+4]
+    mov ebx, [esp+8+8]
+
+    test ebx, ebx                                ; count == zero?
+    jz .done                                     ; yes, dont map any pages
+
+.nxt:                                            ; map next page
+    push esi                                     ; virtual_address
+    call _unmap_page                             ; unmap page
+    add esp, 4
+
+    add esi, PAGE_SIZE                           ; virtual_address += 4096
+    dec ebx                                      ; count -= 1    
+    jnz .nxt                                     ; count > 0?
+
+.done:
+    pop ebx
+    pop esi
     ret
 
 ; flush entire TLB
-; returns CR3
 pg_flush:
     mov eax, cr3
-    mov cr3, eax
+    mov cr3, eax                                 ; reloading CR3 invalidates all TLB entries
     ret
 
-; invalidate page
+; invalidate pages
+; esp+4 = virtual_address
+; esp+8 = page count
 pg_invalidate:
-    mov eax, cr3
-    mov cr3, eax
+    mov eax, [esp+4]                             ; virtual_address
+    and eax, 0xFFFFF000                          ; page align virtual_address
+    mov ecx, [esp+8]                             ; page_count
+
+    test ecx, ecx                                ; page_count == 0?
+    jz .done                                     ; yes, dont invalidate anything
+
+.lp:
+    invlpg [eax]                                 ; invalidate page in TLB
+    add eax, PAGE_SIZE
+    dec ecx
+    jnz .lp
+.done:
     ret
 
 ; located PDE
-; esp+4 = linear_address
+; esp+4 = virtual_address
 ; Returns pointer to PDE
 pg_loc_pde:
-    push edx
-    push edi
-
-    mov edx, [pd_base]
-    mov edi, [esp+8+4]         ; linear_address
-
-    ; compute pd_index
-    mov eax, edi               ; linear_address >> 22
-    shr eax, 22
-    
-    ; compute pde_address
-    mov ecx, edx
-    and ecx, 0xFFFFF000        ; pd_base clear lower 12bits
-   
-    lea eax, [ecx+eax*4]       ; pd_base + pd_index * 4
-
-    pop edi
-    pop edx
+    mov eax, [esp+4]                             ; virtual_address
+    shr eax, 22                                  ; compute pd_index
+    lea eax, [pg_pd+eax*4]                       ; pde = pd_base + pd_index * 4
     ret
 
 ; located PTE
-; esp+4 = linear_address
+; esp+4 = virtual_address
 ; Returns pointer to PTE
 pg_loc_pte:
-    push edx
-    push edi
-
-    mov edx, [pd_base]
-    mov edi, [esp+8+4]         ; linear_address
+    mov ecx, [esp+4]                             ; virtual_address
 
     ; compute pt_index
-    mov eax, edi
+    mov eax, ecx
     shr eax, 12
-    and eax, 0x3FF             ; pt_index = (linear_address >> 12) & 0x3FF
+    and eax, 0x3FF                               ; pt_index = (virtual_address >> 12) & 0x3FF
 
-    ; compute pt_base
-    mov ecx, edi
-    shr ecx, 22
-    shl ecx, 12
-    add ecx, edx
-    add ecx, PD_SIZE
+    ; compute pt_offset
+    shr ecx, 10
+    and ecx, 0xFFFFF000                          ; pt_offset = ((virtual_address >> 10) & 0xFFFFF000)
 
-    lea eax, [ecx+eax*4]       ; pt_base + pt_index * 4
-
-    pop edi
-    pop edx
+    lea eax, [pg_pt+ecx+eax*4]                   ; pte = pt_base + pt_offset + pt_index * 4
     ret
 
 ; get physical address mapped to linear address
-; esp+4 = linear_address
+; esp+4 = virtual_address
 ; returns physical address in eax
 ; returns 0 if not mapped
-pg_get_physical:
+pg_virt2phys:
     push esi
 
-    mov esi, [esp+4+4]       ; linear_address
-    xor ecx, ecx             ; ret_val
+    mov esi, [esp+4+4]                           ; virtual_address
+    xor ecx, ecx                                 ; ret_val
     
-    push esi                 ; linear_address
-    call pg_loc_pde          ; Locate PDE
+    push esi                                     ; virtual_address
+    call pg_loc_pde                              ; locate pde
     add esp, 4
     
-    test dword [eax], P      ; PDE present?
-    jz .done                 ; No, page not mapped; done
+    test dword [eax], P                          ; pde present?
+    jz .done                                     ; no, page not mapped; done
     
-    push esi                 ; linear_address     
-    call pg_loc_pte          ; Locate PTE
+    push esi                                     ; virtual_address     
+    call pg_loc_pte                              ; locate pte
     add esp, 4
 
-    test dword [eax], P      ; PTE present?
-    jz .done                 ; No, page not mapped; done
+    test dword [eax], P                          ; pte present?
+    jz .done                                     ; no, page not mapped; done
     
-    mov eax, [eax]           ; frame = pte   
-    and eax, 0xFFFFF000      ; frame &= 0xFFFFF000;    
-    mov ecx, esi             ; offset = linear_address;
-    and ecx, 0x00000FFF      ; offset &= 0xFFF;
-    or ecx, eax              ; phys_addr = frame | offset;
+    mov eax, [eax]                               ; frame = pte
+    and eax, 0xFFFFF000                          ; frame &= 0xFFFFF000
+    mov ecx, esi                                 ; offset = virtual_address
+    and ecx, 0x00000FFF                          ; offset &= 0xFFF
+    or ecx, eax                                  ; phys_addr = frame | offset
 
 .done:
-    pop esi    
-    mov eax, ecx             ; return phys_addr;
+    pop esi
+    mov eax, ecx                                 ; return phys_addr
+    ret
+
+; change access permissions
+; esp+4  = virtual_address
+; esp+8  = flags (RW and US bits)
+; esp+12 = count
+pg_chgpriv:
+    push esi
+    push ebx
+    push edx
+
+    mov esi, [esp+12+4]
+    mov ebx, [esp+12+8]
+    mov edx, [esp+12+12]
+
+    and ebx, (RW | US)                           ; only keep RW/US
+
+    test edx, edx                                ; page_count == 0?
+    jz .done                                     ; yes, done
+
+.lp:
+    push esi                                     ; virtual_address
+    call pg_loc_pte                              ; locate pte
+    add esp, 4
+
+    and [eax], ~(RW | US)                        ; clear RW/US bits in pte
+    or [eax], ebx                                ; set RW/US bits in pte to flags
+    
+    invlpg [esi]
+    
+    add esi, PAGE_SIZE
+    dec edx
+    jnz .lp
+
+.done:
+    pop edx
+    pop ebx
+    pop esi
     ret
