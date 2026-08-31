@@ -18,7 +18,7 @@ extern exception_ss    ; exceptions.c
 extern exception_gp    ; exceptions.c
 extern exception_pf    ; exceptions.c
 extern write_int_gate  ; idt.asm
-extern kernel_hang     ; kernel.asm
+extern kernel_panic    ; kernel.asm
 
 global idt_init
 global idt
@@ -178,41 +178,44 @@ exc_handler:
 .skip:
     add esp, 18*4                      ; pop STATE
 
-    call kernel_hang
+    push dword 0
+    call kernel_panic
+    add esp, 4
+
     iret
 
 exc_dbz:
-    push 0                            ; fake error code
+    push dword 0                      ; fake error code
     push exception_dbz
     jmp exc_handler
 
 exc_trap:
-    push 0                            ; fake error code
+    push dword 0                      ; fake error code
     push exception_trap
     jmp exc_handler
 
 exc_nmi:
-    push 0                            ; fake error code
+    push dword 0                      ; fake error code
     push exception_nmi
     jmp exc_handler
 
 exc_int3:
-    push 0                            ; fake error code
+    push dword 0                      ; fake error code
     push exception_int3
     jmp exc_handler
 
 exc_of:
-    push 0                            ; fake error code
+    push dword 0                      ; fake error code
     push exception_of
     jmp exc_handler
 
 exc_bound:
-    push 0                            ; fake error code
+    push dword 0                      ; fake error code
     push exception_bound
     jmp exc_handler
 
 exc_ud:
-    push 0                            ; fake error code
+    push dword 0                      ; fake error code
     push exception_ud
     jmp exc_handler
 
