@@ -26,7 +26,7 @@
 
 #define VGA_WIDTH                  80
 #define VGA_HEIGHT                 25
-#define VGA_MEMORY                 0xB8000 
+#define VGA_MEMORY                 0xC00B8000
 
 #define vga_entry_color(fg, bg) (fg |(bg << 4))
 #define vga_entry(uc, color) ((uint16_t)uc | ((uint16_t)color << 8))

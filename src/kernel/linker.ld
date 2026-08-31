@@ -1,68 +1,46 @@
 OUTPUT_FORMAT(elf32-i386)
-ENTRY(kernel_entry)
+ENTRY(_start) /* entry.asm */
 
 SECTIONS {
+    /* Load kernel at physical address 0x00100000 (1MB) */
     . = 0x00100000;
-
-    . = ALIGN(4K);
     sec_kstart = .;
-
-    . = ALIGN(4K);
-    sec_multiboot_start = .;
-
-    /* Read-only data */
-    .multiboot BLOCK(4K) : ALIGN(4K) {
-     *(.multiboot)
+    
+    /* Loader is executed at 0x00100000 */
+    .boot : {
+     sec_boot_start = .;
+     *(.mb)
+     *(.boot)
+     sec_boot_end = .;
     }
 
-    . = ALIGN(4K);
-    sec_multiboot_end = .;
+    /* Kernel is executed at 0xC0100000 */
+    . += 0xC0000000;
 
-    . = ALIGN(4K);
-    sec_text_start = .;
-
-    /* Code */
-    .text BLOCK(4K) : ALIGN(4K) {
+    .text ALIGN (4K) : AT (ADDR (.text) - 0xC0000000) {
+     sec_text_start = .;
      *(.text)
+     sec_text_end = .;
     }
 
-    . = ALIGN(4K);
-    sec_text_end = .;
-
-    . = ALIGN(4K);
-    sec_rodata_start = .;
-
-    /* Read-only data */
-    .rodata BLOCK(4K) : ALIGN(4K) {
+    .rodata ALIGN (4K) : AT (ADDR (.rodata) - 0xC0000000) {
+     sec_rodata_start = .;
      *(.rodata)
+     sec_rodata_end = .;
     }
 
-    . = ALIGN(4K);
-    sec_rodata_end = .;
-
-    . = ALIGN(4K);
-    sec_data_start = .;
-
-    /* Read-write data (initialized) */
-    .data BLOCK(4K) : ALIGN(4K) {
+    .data ALIGN (4K) : AT (ADDR (.data) - 0xC0000000) {
+     sec_data_start = .;
      *(.data)
+     sec_data_end = .;
     }
 
-    . = ALIGN(4K);
-    sec_data_end = .;
-
-    . = ALIGN(4K);
-    sec_bss_start = .;
-
-    /* Read-write data (uninitialized) */
-    .bss (NOLOAD) : ALIGN(4K) {
+    .bss ALIGN (4K) : AT (ADDR (.bss) - 0xC0000000) {
+     sec_bss_start = .;
      *(COMMON)
      *(.bss)
+     sec_bss_end = .;
     }
 
-    . = ALIGN(4K);
-    sec_bss_end = .;
-
-    . = ALIGN(4K);
     sec_kend = .;
 }

@@ -10,3 +10,8 @@ extern KTSS                             ; Kernel tss
 extern UCODE                            ; User code segment
 extern UDATA                            ; User data segment
 extern USTACK                           ; User stack segment
+
+KVIRT equ 0xC0000000
+
+; Virtual Address -> Physical Address; only works for virtual kernel addresses.
+%define V2P(x) (x - KVIRT)

@@ -56,7 +56,7 @@ _map_page:
     mov ecx, esi                                 ; pde = virtual_address
     shr ecx, 10                                  ; pde >>= 10
     and ecx, 0xFFFFF000                          ; pde &= 0xFFFFF000
-    add ecx, pg_pt                               ; pde += pg_pt (physical address)
+    add ecx, V2P(pg_pt)                          ; pde += pg_pt (physical address)
     or ecx, (RW | P)                             ; pde |= (PTE_P | PTE_RW)
     mov [eax], ecx                               ; write pde
 

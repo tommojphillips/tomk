@@ -5,6 +5,9 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
+/* Kernel Virtual Load Address */
+#define KVIRT 0xC0000000
+
 #define KDBG
 #ifdef KDBG
 #include <stdio.h>

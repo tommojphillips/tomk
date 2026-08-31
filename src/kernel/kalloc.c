@@ -12,6 +12,7 @@
 
 #include <kernel.h>
 #include <assert.h>
+#include <paging.h>
 
 typedef struct kalloc_t {
 	uint32_t base;
@@ -72,7 +73,11 @@ void* kalloc_align(size_t size, size_t align) {
 	}
 	
 	ka.next = p + s;
-	return (void*)p;
+
+	/* Map virtual address */
+	pg_map(p + KVIRT, p, PTE_RW, (s + 0xFFF) >> 12);
+
+	return (void*)(p + KVIRT);
 }
 void* kalloc_page(size_t size) {
 	return kalloc_align(size, 0x1000);
