@@ -4,38 +4,36 @@
 
 OUT_FN := kernel
 
-OUT_DIR := bin/$(OUT_FN)
-OBJ_DIR := obj
-
-LINKER := src/$(OUT_FN)/linker.ld
+DEBUG ?= 1
 
 CC := i686-elf-gcc
 AS := nasm
 LD := i686-elf-ld
 OBJCOPY := objcopy
 OBJDUMP := i686-elf-objdump
+LINKER := src/$(OUT_FN)/linker.ld
 
-# ------------------------------------------------------------
-# Build configuration
-# ------------------------------------------------------------
-
-DEBUG ?= 1
 CFLAGS := -std=gnu99 -ffreestanding -Wall -Wextra -march=i386 -MMD -MP
 ASFLAGS := -f elf32
 LDFLAGS := -m elf_i386
+
+ifeq ($(DEBUG),1)
+	CFG := debug
+	CFLAGS += -g
+	ASFLAGS += -g
+else
+	CFG := release
+	CFLAGS += -O2
+endif
+
+OBJ_DIR := obj/$(CFG)
+OUT_DIR := bin/$(CFG)
 
 INCLUDES := \
 	-Isrc/kernel/include \
 	-Isrc/driver/include \
 	-Isrc/libc/include \
 	-Isrc/disasm
-
-ifeq ($(DEBUG),1)
-	CFLAGS += -g
-	ASFLAGS += -g
-else
-	CFLAGS += -O2
-endif
 
 # ------------------------------------------------------------
 # Source files
