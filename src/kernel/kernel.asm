@@ -14,7 +14,8 @@ extern ps2_init                                  ; driver\ps2\ps2.asm
 extern serial_init                               ; driver\uart\uart.asm
 
 extern kernel_main                               ; kernel.c
-extern printf
+extern kprintf                                   ; kernel.c
+extern kdprintf                                  ; kernel.c
 
 extern sec_boot_start                            ; linker.ld
 extern sec_boot_end                              ; linker.ld
@@ -79,30 +80,12 @@ kernel_init:
 ; Kernel hang; hang system indefinitely
 ; DOES NOT RETURN!
 kernel_hang:
-    push hang_str            ; print hang msg
-    call printf
+    dec [esp+0]
+    push hang_str                                ; print hang msg
+    call kdprintf
     add esp, 4
 
-_hang:
+.hang:
     cli
     hlt
-    jmp _hang
-
-; Kernel panic; hang system indefinitely
-; DOES NOT RETURN!
-kernel_panic:
-    
-    mov eax, [esp+4]         ; msg
-    test eax, eax            ; NULL?
-    jz .pr_msg               ; yes, skip printing msg
-
-    push eax                 ; print msg
-    call printf
-    add esp, 4
-
-.pr_msg:
-    push panic_str           ; print panic msg
-    call printf
-    add esp, 4
-
-    jmp _hang                ; hang indefinitely
+    jmp .hang

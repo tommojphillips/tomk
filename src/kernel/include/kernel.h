@@ -11,12 +11,24 @@
 #define KDBG
 #ifdef KDBG
 #include <stdio.h>
-#define kprint(...) printf(__VA_ARGS__)
+#include <stdarg.h>
+#define kprint(...) kprintf(__VA_ARGS__)
+#define kdprint(...) kdprintf(__VA_ARGS__)
 #else
 #define kprint(...)
+#define kdprint(...)
 #endif
 
-void kernel_panic(const char* msg);
+/* Print to stdout and serial */
+void kprintf(const char* fmt, ...);
+
+/* Print to serial */
+void kdprintf(const char* fmt, ...);
+
+/* Panic (hang system) */
+void kernel_panic(const char* fmt, ...);
+
+/* Hang system */
 void kernel_hang(void);
 
 #endif

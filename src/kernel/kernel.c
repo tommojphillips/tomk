@@ -150,6 +150,32 @@ void kernel_main(void) {
 	kernel_hang();
 }
 
+void kprintf(const char* fmt, ...) {
+	va_list args;
+    va_start(args, fmt);
+    vfprintf(STDIO, fmt, args);
+	vfprintf(SERIAL, fmt, args);
+    va_end(args);
+}
+void kdprintf(const char* fmt, ...) {
+	va_list args;
+    va_start(args, fmt);
+	vfprintf(SERIAL, fmt, args);
+    va_end(args);
+}
+void kernel_panic(const char* fmt, ...) {
+	const char* panic_str = "\nKERNEL PANIC\n";
+	va_list args;
+    va_start(args, fmt);
+	fprintf(STDIO, panic_str);
+	vfprintf(STDIO, fmt, args);
+	fprintf(SERIAL, panic_str);
+	vfprintf(SERIAL, fmt, args);
+    va_end(args);
+
+	kernel_hang();
+}
+
 static int kshell_command_cls(void* userparam);
 static int kshell_command_echo(void* userparam);
 static int kshell_command_mem(void* userparam);
