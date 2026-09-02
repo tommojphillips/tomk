@@ -4,7 +4,7 @@
 
 BITS 32
 
-extern write_tss_gate
+extern write_tss_descriptor
 
 global tss_init
 
@@ -23,7 +23,7 @@ tss_init:
     push 10001001b          ; access P=1 DPL=00 S=0 TYPE=1001 (386 Available TSS)
     push 0x68               ; limit
     push KTSS               ; selector 
-    call write_tss_gate
+    call write_tss_descriptor
     add esp, 16
 
     ; Load TR
