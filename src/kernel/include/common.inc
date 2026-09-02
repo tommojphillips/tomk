@@ -2,16 +2,16 @@
 ; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
 ;
 
-extern KCODE                            ; Kernel code segment
-extern KDATA                            ; Kernel data segment
-extern KSTACK                           ; Kernel stack segment
-extern KTSS                             ; Kernel tss
+extern KCODE                            ; Kernelspace code segment
+extern KDATA                            ; Kernelspace data segment
+extern KSTACK                           ; Kernelspace stack segment
+extern KTSS                             ; Kernelspace tss
 
-extern UCODE                            ; User code segment
-extern UDATA                            ; User data segment
-extern USTACK                           ; User stack segment
+extern UCODE                            ; Userspace code segment
+extern UDATA                            ; Userspace data segment
+extern USTACK                           ; Userspace stack segment
 
-KVIRT equ 0xC0000000
+KVIRT equ 0xC0000000                    ; higher-half kernel virtual address base
 
-; Virtual Address -> Physical Address; only works for virtual kernel addresses.
-%define V2P(x) (x - KVIRT)
+%define V2P(x) (x - KVIRT)              ; convert a higher-half kernel virtual address to a physical address
+%define P2V(x) (KVIRT + x)              ; convert a physical address to a higher-half kernel virtual address
