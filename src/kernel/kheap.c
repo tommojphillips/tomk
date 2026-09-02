@@ -17,8 +17,7 @@
 #include <kernel.h>
 #include <assert.h>
 #include <align.h>
-
-#define PAGE_SIZE         0x1000
+#include <paging.h>
 
 #define HEAP_GROW_PAGES   0x10
 
@@ -152,7 +151,7 @@ void kfree(void* ptr) {
 
     /* If this region now contains exactly one free block, return the region to the VMM */
     if (region->head == region->tail && region->head == block && !(block->flags & HEAP_BLOCK_USED)) {
-        size_t page_count = region->size >> 12;
+        size_t page_count = PAGE_COUNT(region->size);
         void* virt_addr = region;
 
         kdprint("[KHEAP] release: region=%X size=%X\n", virt_addr, region->size);
@@ -168,7 +167,7 @@ static heap_region_t* heap_grow(size_t size) {
     heap_block_t* block = NULL;
     size_t pages = 0;
     
-    pages = (size + HEAP_REGION_SIZE + HEAP_HEADER_SIZE + PAGE_SIZE - 1) >> 12;
+    pages = PAGE_COUNT(size + HEAP_REGION_SIZE + HEAP_HEADER_SIZE + (PAGE_SIZE-1));
 
     if (pages < HEAP_GROW_PAGES) {
         pages = HEAP_GROW_PAGES;

@@ -13,7 +13,7 @@
 /* Initialize pmm 
  base: virtual address base  
  end: virtual address end */
-void vmm_init(uint32_t base, uint32_t end);
+void vmm_init(uintptr_t base, uintptr_t end);
 
 /* Allocate contiguous virtual pages backed by arbitrary physical pages.
  count: requested page count 
@@ -53,10 +53,10 @@ size_t vmm_get_usable(void);
 
 /* Mark virtual page(s) free
  virt: Virtual page address */
-void vmm_mark_free(uint32_t virt, size_t count);
+void vmm_mark_free(uintptr_t virt, size_t count);
 
 /* Mark virtual page(s) used
  virt: Virtual page address */
-void vmm_mark_used(uint32_t virt, size_t count);
+void vmm_mark_used(uintptr_t virt, size_t count);
 
 #endif

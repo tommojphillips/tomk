@@ -13,32 +13,30 @@
 #include <kernel.h>
 #include <assert.h>
 #include <align.h>
-
-#define PAGE_SIZE 0x1000
+#include <paging.h>
 
 /* CEIL DIV */
 #define CEIL_DIV(x,y) (((x) + (y) - 1) / (y))
 
 typedef struct pmm_t {
     uint32_t* bitmap;
-    uint32_t bitmap_size;
-
-    uint32_t total_pages;
-    uint32_t usable_pages;
-    uint32_t free_pages;
-    uint32_t used_pages;
-    uint32_t hint;
-    uint32_t memory_end;
+    size_t bitmap_size;
+    size_t total_pages;
+    size_t usable_pages;
+    size_t free_pages;
+    size_t used_pages;
+    size_t hint;
+    uintptr_t memory_end;
 } pmm_t;
 
 /* Physical Memory Manager */
 static pmm_t pmm;
 
-static void pmm_set(uint32_t phys);
-static void pmm_clear(uint32_t phys);
-static int pmm_test(uint32_t phys);
-static uint32_t pmm_alloc_one(void);
-static uint32_t pmm_find_contiguous_pages(size_t count);
+static void pmm_set(uintptr_t phys);
+static void pmm_clear(uintptr_t phys);
+static int pmm_test(uintptr_t phys);
+static uintptr_t pmm_alloc_one(void);
+static uintptr_t pmm_find_contiguous_pages(size_t count);
 
 void pmm_init(const kmmap_t* kmmap) {
     assert(kmmap != NULL);
@@ -55,27 +53,28 @@ void pmm_init(const kmmap_t* kmmap) {
             continue;
         }
         
-        uint32_t end = kmmap->regions[i].address + kmmap->regions[i].size;
+        uintptr_t end = kmmap->regions[i].address + kmmap->regions[i].size;
 
         if (end > pmm.memory_end) {
             pmm.memory_end = end;
         }
 
-        uint32_t start_page = ALIGN(uint32_t, kmmap->regions[i].address, PAGE_SIZE);
-        uint32_t end_page = end & ~(uint32_t)(PAGE_SIZE - 1);
+        uintptr_t start_page = ALIGN(uintptr_t, kmmap->regions[i].address, PAGE_SIZE);
+        uintptr_t end_page = end & ~(uintptr_t)(PAGE_SIZE - 1);
 
         if (end_page > start_page) {
-            pmm.usable_pages += ((end_page - start_page) >> 12);
+            pmm.usable_pages += PAGE_COUNT(end_page - start_page);
         }
     }
     
-    pmm.total_pages = (uint32_t)((pmm.memory_end + PAGE_SIZE - 1) >> 12);
+    pmm.total_pages = PAGE_COUNT(pmm.memory_end + (PAGE_SIZE-1));
     pmm.bitmap_size = CEIL_DIV(pmm.total_pages, 32) * sizeof(uint32_t);
     pmm.free_pages = 0;
     pmm.used_pages = pmm.usable_pages;
     pmm.hint = 0;
     
-    pmm.bitmap = kalloc(pmm.bitmap_size);
+    /* Allocate memory for the bitmap */
+    pmm.bitmap = kinit_alloc(pmm.bitmap_size);
     assert(pmm.bitmap != NULL);
 
     /* Mark all physical addresses used */
@@ -97,7 +96,7 @@ void pmm_init(const kmmap_t* kmmap) {
     pmm_mark_used(0x00000000, 0x1000);
 }
 
-uint32_t pmm_alloc(size_t count) {
+uintptr_t pmm_alloc(size_t count) {
     /* Contiguous physical addresses */
 
     if (count == 0) {
@@ -114,7 +113,7 @@ uint32_t pmm_alloc(size_t count) {
     }
     
     /* Multiple pages have been requested. Figure out were the next contiguous block of physical pages are */
-    uint32_t start = pmm_find_contiguous_pages(count);
+    uintptr_t start = pmm_find_contiguous_pages(count);
     if (start == 0) {
         kprint("[PMM] fragmentation error: %u\n", count);
         return 0;
@@ -130,7 +129,7 @@ uint32_t pmm_alloc(size_t count) {
 
     return start << 12;
 }
-void pmm_free(uint32_t phys, size_t count) {    
+void pmm_free(uintptr_t phys, size_t count) {    
     if (count == 0) {
         return;
     }
@@ -141,7 +140,7 @@ void pmm_free(uint32_t phys, size_t count) {
         return;
     }
     
-    uint32_t page = phys >> 12;
+    uintptr_t page = PAGE_COUNT(phys);
 
     /* Page must be managed by PMM */
     if (page >= pmm.total_pages || count > pmm.total_pages - page) {
@@ -166,16 +165,16 @@ void pmm_free(uint32_t phys, size_t count) {
     pmm.used_pages -= count;
 }
 
-void pmm_mark_free(uint32_t phys, size_t size) {    
+void pmm_mark_free(uintptr_t phys, size_t size) {    
     if (phys > pmm.memory_end) {
         return;
     }
 
-    uint32_t start = phys & 0xFFFFF000;
-    uint32_t end = (phys + size + 0xFFF) & 0xFFFFF000;
+    uintptr_t start = phys & ~(PAGE_SIZE-1);
+    uintptr_t end = (phys + size + (PAGE_SIZE-1)) & ~(PAGE_SIZE-1);
 
-    for (uint32_t p = start; p < end; p += PAGE_SIZE) {
-        uint32_t page = p >> 12;
+    for (uintptr_t p = start; p < end; p += PAGE_SIZE) {
+        uintptr_t page = PAGE_COUNT(p);
         
         if (page >= pmm.total_pages) {
             continue;
@@ -190,16 +189,16 @@ void pmm_mark_free(uint32_t phys, size_t size) {
 
     kdprint("[PMM] mark free: %08X-%08X\n", start, end);
 }
-void pmm_mark_used(uint32_t phys, size_t size) {    
+void pmm_mark_used(uintptr_t phys, size_t size) {    
     if (phys > pmm.memory_end) {
         return;
     }
 
-    uint32_t start = phys & 0xFFFFF000;
-    uint32_t end = (phys + size + 0xFFF) & 0xFFFFF000;
+    uintptr_t start = phys & ~(PAGE_SIZE-1);
+    uintptr_t end = (phys + size + (PAGE_SIZE-1)) & ~(PAGE_SIZE-1);
 
-    for (uint32_t p = start; p < end; p += PAGE_SIZE) {
-        uint32_t page = p >> 12;
+    for (uintptr_t p = start; p < end; p += PAGE_SIZE) {
+        uintptr_t page = PAGE_COUNT(p);
 
         if (page >= pmm.total_pages) {
             continue;
@@ -215,32 +214,32 @@ void pmm_mark_used(uint32_t phys, size_t size) {
     kdprint("[PMM] mark used: %08X-%08X\n", start, end);
 }
 
-uint32_t pmm_get_free(void) {
+size_t pmm_get_free(void) {
     return pmm.free_pages;
 }
-uint32_t pmm_get_total(void) {
+size_t pmm_get_total(void) {
     return pmm.total_pages;
 }
-uint32_t pmm_get_used(void) {
+size_t pmm_get_used(void) {
     return pmm.used_pages;
 }
-uint32_t pmm_get_usable(void) {
+size_t pmm_get_usable(void) {
     return pmm.usable_pages;
 }
 
-static void pmm_set(uint32_t phys) {
-    uint32_t page = phys >> 12;
+static void pmm_set(uintptr_t phys) {
+    uintptr_t page = PAGE_COUNT(phys);
     pmm.bitmap[page >> 5] |= 1u << (page & 31);
 }
-static void pmm_clear(uint32_t phys) {
-    uint32_t page = phys >> 12;
+static void pmm_clear(uintptr_t phys) {
+    uintptr_t page = PAGE_COUNT(phys);
     pmm.bitmap[page >> 5] &= ~(1u << (page & 31));
 }
-static int pmm_test(uint32_t phys) {
-    uint32_t page = phys >> 12;
+static int pmm_test(uintptr_t phys) {
+    uintptr_t page = PAGE_COUNT(phys);
     return pmm.bitmap[page >> 5] & (1u << (page & 31));
 }
-static uint32_t pmm_alloc_one(void) {
+static uintptr_t pmm_alloc_one(void) {
     /* Search for a free page 32 pages at a time. */
 
     if (pmm.free_pages == 0) {
@@ -251,14 +250,14 @@ static uint32_t pmm_alloc_one(void) {
         pmm.hint = 0;
     }
 
-    uint32_t page = pmm.hint;
-    uint32_t start = pmm.hint >> 5;
+    uintptr_t page = pmm.hint;
+    size_t start = pmm.hint >> 5;
 
     /* Search from hint to end 
      * [start] 11111111 11111111 11111111 11100000 [end]
      *                                  ^ hint
      *                   search ------->              */
-    for (uint32_t dword = start; dword < pmm.bitmap_size / sizeof(uint32_t); dword++) {
+    for (size_t dword = start; dword < pmm.bitmap_size / sizeof(uint32_t); dword++) {
         assert(pmm.bitmap != NULL);
 
         uint32_t bits = pmm.bitmap[dword];
@@ -306,7 +305,7 @@ static uint32_t pmm_alloc_one(void) {
      * [start] 11111111 11111111 11111111 11100000 [end]
      *                                  ^ hint
      *                                  <------ search */
-    for (uint32_t dword = 0; dword <= start; dword++) {
+    for (size_t dword = 0; dword <= start; dword++) {
         uint32_t bits = pmm.bitmap[dword];
 
         /* Ignore pages at and after hint in the final dword */
@@ -350,24 +349,24 @@ static uint32_t pmm_alloc_one(void) {
 
     return 0;
 }
-static uint32_t pmm_find_contiguous_pages(size_t count) {
+static uintptr_t pmm_find_contiguous_pages(size_t count) {
     /* Find a contiguous range of physical pages */
     assert(pmm.bitmap != NULL);
     assert(pmm.bitmap_size != 0);
 
-    uint32_t start = 0;
-    uint32_t run = 0;
-    uint32_t len = pmm.bitmap_size / sizeof(uint32_t);
+    uintptr_t start = 0;
+    size_t run = 0;
+    size_t len = pmm.bitmap_size / sizeof(uint32_t);
 
     if (count == 0) {
         return 0;
     }
 
-    for (uint32_t dword = 0; dword < len; dword++) {
+    for (size_t dword = 0; dword < len; dword++) {
         uint32_t bits = pmm.bitmap[dword];
 
         for (uint32_t bit = 0; bit < 32U; bit++) {
-            uint32_t page = (dword << 5) + bit;
+            uintptr_t page = (dword << 5) + bit;
 
             if (page >= pmm.total_pages) {
                 break;

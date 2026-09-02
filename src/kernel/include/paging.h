@@ -13,6 +13,7 @@
 #define PD_SIZE       (PD_ENTRY_SIZE * PD_ENTRIES)
 #define PT_ENTRIES    1024
 #define PT_SIZE       (PAGE_SIZE * PT_ENTRIES)
+#define PAGE_COUNT(x) ((x) >> 12)
 
 #define PTE_NP 0x00 /* Not Present */
 #define PTE_P  0x01 /* Present */
@@ -25,12 +26,12 @@ virtual_address:  virtual start address
 phyiscal_address: physical start address
 flags:            page flags
 count:            page count */
-extern void pg_map(uint32_t virtual_address, uint32_t physical_address, uint32_t flags, uint32_t count);
+extern void pg_map(uintptr_t virtual_address, uintptr_t physical_address, uint32_t flags, size_t count);
 
 /* Unmap contiguous pages
 virtual_address:  virtual start address
 count:            page count */
-extern void pg_unmap(uint32_t virtual_address, uint32_t count);
+extern void pg_unmap(uintptr_t virtual_address, size_t count);
 
 /* Flush TLB */
 extern void pg_flush(void);
@@ -38,14 +39,14 @@ extern void pg_flush(void);
 /* Invalidate page table entry in TLB
  virtual_address: start virtual address
  count:           page count */
-extern void pg_invalidate(uint32_t virtual_address, uint32_t count);
+extern void pg_invalidate(uintptr_t virtual_address, size_t count);
 
 /* Get the physical address that is mapped to virtual address
  virtual_address: the virtual address to convert
  returns 0 if the physical address isnt mapped, otherwise returns the physical address */
-extern uint32_t pg_virt2phys(uint32_t virtual_address);
+extern uintptr_t pg_virt2phys(uintptr_t virtual_address);
 
 /* Change virtual address change access permissions (RW/US bits) */
-extern void pg_chgpriv(uint32_t virtual_address, uint32_t flags, uint32_t count);
+extern void pg_chgpriv(uintptr_t virtual_address, uint32_t flags, size_t count);
 
 #endif

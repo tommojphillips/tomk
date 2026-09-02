@@ -18,8 +18,8 @@
 
 /* Kernel Memory Region */
 typedef struct kmregion_t {
-	uint64_t address;
-	uint64_t size;
+	uintptr_t address;
+	size_t size;
 	uint32_t flags;
 } kmregion_t;
 
@@ -30,7 +30,7 @@ typedef struct kmmap_t {
 } kmmap_t;
 
 void kmmap_init(kmmap_t* kmmap);
-void kmmap_add(kmmap_t* kmmap, uint64_t address, uint64_t size, uint32_t flags);
-void kmmap_remove(kmmap_t* kmmap, uint64_t address);
+void kmmap_add(kmmap_t* kmmap, uintptr_t address, size_t size, uint32_t flags);
+void kmmap_remove(kmmap_t* kmmap, uintptr_t address);
 
 #endif
