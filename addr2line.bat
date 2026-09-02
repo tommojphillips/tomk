@@ -1,5 +1,1 @@
-@echo off
-
-set "elf=bin/kernel/kernel.sym"
-
-i686-elf-addr2line.exe -a -p -s -e %elf% %*
+i686-elf-addr2line -a -p -s -e elf=bin/kernel/kernel.sym %*
