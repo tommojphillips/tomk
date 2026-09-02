@@ -66,11 +66,11 @@ _map_page:
     add esp, 4
 
 .build_pte:
-    mov ecx, edi                                 ; pte = physical_address
-    and ecx, 0xFFFFF000                          ; pte &= 0xFFFFF000
-    and ebx, 0x00000FFF                          ; flags &= 0x00000FFF
-    or ebx, P                                    ; pte |= P
-    or ecx, ebx                                  ; pte |= flags
+    mov ecx, edi                                 ; physical_address
+    and ecx, 0xFFFFF000                          ; get physical_page_frame
+    and ebx, (PAGE_SIZE-1)                       ; get flags
+    or ebx, P                                    ; set present bit
+    or ecx, ebx                                  ; set flags
     mov [eax], ecx                               ; write pte
 
 .done:
@@ -241,11 +241,11 @@ pg_virt2phys:
     test dword [eax], P                          ; pte present?
     jz .done                                     ; no, page not mapped; done
     
-    mov eax, [eax]                               ; frame = pte
-    and eax, 0xFFFFF000                          ; frame &= 0xFFFFF000
-    mov ecx, esi                                 ; offset = virtual_address
-    and ecx, 0x00000FFF                          ; offset &= 0xFFF
-    or ecx, eax                                  ; phys_addr = frame | offset
+    mov eax, [eax]                               ; pte
+    and eax, 0xFFFFF000                          ; get page_frame
+    mov ecx, esi                                 ; virtual_address
+    and ecx, (PAGE_SIZE-1)                       ; get page_offset
+    or ecx, eax                                  ; set phys_addr; (page_frame | page_offset)
 
 .done:
     pop esi

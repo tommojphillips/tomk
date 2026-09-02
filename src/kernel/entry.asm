@@ -27,7 +27,6 @@ extern sec_bss_end                               ; linker.ld
 extern kernel_init                               ; kernel.asm
 extern pg_pd                                     ; paging.asm
 extern pg_pt                                     ; paging.asm
-
 global mb_info_ptr
 global _start
 
@@ -44,8 +43,8 @@ _start:
     jnz .unk
 
 .mb:
-    add ebx, KVIRT
-    mov [V2P(mb_info_ptr)], ebx                  ; save pointer in EBX
+    add ebx, KVIRT                               ; convert pointer to a kernel virtual address
+    mov [V2P(mb_info_ptr)], ebx                  ; save pointer
     jmp .enter_higher_half
 
 .unk:
@@ -55,7 +54,7 @@ _start:
 
     ; map first 1MB to KVIRT
     push 256-1                                   ; page count
-    push (P | RW)                                ; flags
+    push RW                                      ; flags
     push 0x00001000                              ; physical address
     push 0x00001000+KVIRT                        ; virtual address
     call map                                     ; map first 1MB to KVIRT
@@ -69,7 +68,7 @@ _start:
 
     ; map .text section (KVIRT+1MB) (Read-Only)
     push edx                                     ; page count
-    push (P | RO)                                ; flags
+    push RO                                      ; flags
     push V2P(sec_text_start)                     ; physical address
     push sec_text_start                          ; virtual address
     call map                                     ; map .text section (KVIRT)
@@ -83,7 +82,7 @@ _start:
 
     ; map .rodata section (KVIRT+1MB) (Read-Only)
     push edx                                     ; page count
-    push (P | RO)                                ; flags
+    push RO                                      ; flags
     push V2P(sec_rodata_start)                   ; physical address
     push sec_rodata_start                        ; virtual address
     call map                                     ; map .rodata section (KVIRT)
@@ -97,7 +96,7 @@ _start:
 
     ; map .data section (KVIRT+1MB) (Read-Write)
     push edx                                     ; page count
-    push (P | RW)                                ; flags
+    push RW                                      ; flags
     push V2P(sec_data_start)                     ; physical address
     push sec_data_start                          ; virtual address
     call map                                     ; map .data section (KVIRT)
@@ -111,12 +110,12 @@ _start:
 
     ; map .bss section (KVIRT+1MB) (Read-Write)
     push edx                                     ; page count
-    push (P | RW)                                ; flags
+    push RW                                      ; flags
     push V2P(sec_bss_start)                      ; physical address
     push sec_bss_start                           ; virtual address
     call map                                     ; map .bss section (KVIRT)
     add esp, 16
-    
+        
     ; compute .boot section size
     mov edx, sec_boot_end
     add edx, 0xFFF                               ; page align end address
@@ -125,7 +124,7 @@ _start:
 
     ; map .boot section (1MB identity) (Read-Only)
     push edx                                     ; page count
-    push (P | RO)                                ; flags
+    push RO                                      ; flags
     push sec_boot_start                          ; physical address
     push sec_boot_start                          ; virtual address
     call map                                     ; map .boot section (identity)
@@ -201,10 +200,11 @@ _map:
     add esp, 4
 
 .build_pte:
-    mov ecx, edi                                 ; pte = physical_address
-    and ecx, 0xFFFFF000                          ; pte &= 0xFFFFF000
-    and ebx, 0x00000FFF                          ; flags &= 0x00000FFF
-    or ecx, ebx                                  ; pte |= flags
+    mov ecx, edi                                 ; physical_address
+    and ecx, 0xFFFFF000                          ; get physical_page_frame
+    and ebx, (PAGE_SIZE-1)                       ; get flags
+    or ebx, P                                    ; set present bit
+    or ecx, ebx                                  ; set flags
     mov [eax], ecx                               ; write pte
 
 .done:
