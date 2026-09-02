@@ -1,30 +1,28 @@
-/* kalloc.h
+/* kinit_alloc.h
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
  *
- *  Primitive Bump Allocator for bootstraping the system.
+ *  Primitive Allocator for early kernel initialization
  */
 
-#ifndef KALLOC_H
-#define KALLOC_H
+#ifndef KINIT_ALLOC_H
+#define KINIT_ALLOC_H
 
-/* kalloc init */
-void kalloc_init(uint32_t base, uint32_t limit);
+#include <stddef.h>
 
-/* kalloc disable */
-void kalloc_disable(void);
+/* kinit_alloc init */
+void kinit_alloc_init(uintptr_t base, size_t limit);
 
-/* Get bottom of HEAP */
-uint32_t kalloc_get_base(void);
-uint32_t kalloc_get_next(void);
-uint32_t kalloc_get_limit(void);
+/* kinit_alloc finalize allocations */
+void kinit_alloc_finalize(void);
 
-/* kalloc (x = alignment) */
-void* kalloc_align(size_t size, size_t align);
+uintptr_t kinit_alloc_get_base(void);
+uintptr_t kinit_alloc_get_next(void);
+size_t kinit_alloc_get_limit(void);
 
-/* kalloc (4096 = alignment), */
-void* kalloc_page(size_t size);
+/* kinit_alloc (x = alignment) */
+void* kinit_alloc_align(size_t size, size_t align);
 
-/* kalloc (16 = alignment) */
-void* kalloc(size_t size);
+/* kinit_alloc (16 = alignment) */
+void* kinit_alloc(size_t size);
 
 #endif

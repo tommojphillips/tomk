@@ -4,64 +4,66 @@
  * Bootstrap bump allocator.
  *
  * Allocations persist for the lifetime of the kernel and cannot be freed.
- * Intended only for early initialization and permanent kernel structures.
+ * Intended only for early initialization.
  */
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 #include <assert.h>
 #include <paging.h>
 
-typedef struct kalloc_t {
-	uint32_t base;
-	uint32_t next;
-	uint32_t limit;
-	uint32_t enabled;
-} kalloc_t;
+typedef struct kinit_alloc_t {
+	uintptr_t base;
+	uintptr_t next;
+	size_t limit;
+	bool enabled;
+} kinit_alloc_t;
 
-static kalloc_t ka;
+static kinit_alloc_t ka;
 
 #define DEFAULT_ALIGNMENT 0x10
 
 /* ALIGN */
 #define ALIGN(t,x,a) (((t)(x) + (t)((a) - 1)) & ~((t)((a) - 1)))
 
-void kalloc_init(uint32_t base, uint32_t limit) {
-	assert((base & 0x00000FFF) == 0);
-	assert((limit & 0x00000FFF) == 0);
+void kinit_alloc_init(uintptr_t base, uintptr_t limit) {
+	assert((base & (PAGE_SIZE-1)) == 0);
+	assert((limit & (PAGE_SIZE-1)) == 0);
 
 	ka.base = base;
 	ka.next = base;
 	ka.limit = limit;
-	ka.enabled = 1;
+	ka.enabled = true;
 }
-void kalloc_disable(void) {
-	ka.enabled = 0;
+void kinit_alloc_finalize(void) {
+	assert(ka.enabled == true);
+	assert(ka.next > ka.base);
+
+	ka.enabled = false;
 	ka.limit = ka.next - ka.base;
 }
-uint32_t kalloc_get_base(void) {
+uintptr_t kinit_alloc_get_base(void) {
 	return ka.base;
 }
-uint32_t kalloc_get_next(void) {
+uintptr_t kinit_alloc_get_next(void) {
 	return ka.next;
 }
-uint32_t kalloc_get_limit(void) {
+size_t kinit_alloc_get_limit(void) {
 	return ka.limit;
 }
-void* kalloc_align(size_t size, size_t align) {
-	uint32_t p = 0;
-	size_t s = 0;
+void* kinit_alloc_align(size_t size, size_t align) {
+	assert(ka.enabled == true);
 
-	if (!ka.enabled) {
-		return NULL;
-	}
+	uintptr_t p = 0;
+	size_t s = 0;
 
 	if (align == 0) {
 		align = DEFAULT_ALIGNMENT;
 	}
 
-	p = ALIGN(uint32_t, ka.next, align);
+	p = ALIGN(uintptr_t, ka.next, align);
 	s = size;
 
 	if (((p - ka.base) + s) > ka.limit) {
@@ -71,13 +73,10 @@ void* kalloc_align(size_t size, size_t align) {
 	ka.next = p + s;
 
 	/* Map virtual address */
-	pg_map(p + KVIRT, p, PTE_RW, (s + 0xFFF) >> 12);
+	pg_map(p + KVIRT, p, PTE_RW, PAGE_COUNT(s + (PAGE_SIZE-1)));
 
 	return (void*)(p + KVIRT);
 }
-void* kalloc_page(size_t size) {
-	return kalloc_align(size, 0x1000);
-}
-void* kalloc(size_t size) {
-	return kalloc_align(size, 0);
+void* kinit_alloc(size_t size) {
+	return kinit_alloc_align(size, 0);
 }
