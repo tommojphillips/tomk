@@ -8,7 +8,17 @@ global serial_init
 global serial_write
 global serial_read
 
-PORT equ 0x3F8
+PORT        equ 0x3F8
+
+BAUD_38400  equ 0x03
+BAUD        equ BAUD_38400
+
+LCR_DLAB    equ 0x80
+LCR_TEMT    equ 0x40                              ; transmitter shift register empty bit
+LCR_THRE    equ 0x20                              ; transmitter holding register empty bit
+LCR_8N1     equ 0x03
+LSR_DR      equ 0x01                              ; data ready bit
+TEST_BYTE   equ 0xAE
 
 section .text
 
@@ -17,52 +27,55 @@ serial_init:
 
     mov al, 0x00
     mov dx, PORT+1
-    out dx, al                                   ; disable all interrupts    
+    out dx, al                                   ; IER = 0; disable interrupts    
+
+.set_baud:
+    mov al, LCR_DLAB
+    mov dx, PORT+3                               ; LCR
+    out dx, al                                   ; enable DLAB in LCR
     
-    mov al, 0x80
+    mov ax, BAUD
+    mov dx, PORT+0                               ; DLL
+    out dx, al                                   ; set divisor to 3 38400 baud
+    
+    shr ax, 8
+    mov dx, PORT+1                               ; DLM
+    out dx, al                                   ; set divisor to 3 38400 baud
+
+    mov al, LCR_8N1
     mov dx, PORT+3
-    out dx, al                                   ; enable DLAB (set baud rate divisor)
-    
-    mov al, 0x03
-    mov dx, PORT+0
-    out dx, al                                   ; set divisor to 3 (lo byte) 38400 baud
-    
-    mov al, 0x00
-    mov dx, PORT+1
-    out dx, al                                   ; (hi byte)
-    
-    mov al, 0x03
-    mov dx, PORT+3
-    out dx, al                                   ; 8 bits, no parity, one stop bit
+    out dx, al                                   ; set 8 bits, no parity, one stop bit; disable DLAB
     
     mov al, 0xC7
-    mov dx, PORT+2
+    mov dx, PORT+2                               ; FCR
     out dx, al                                   ; enable FIFO, clear them, with 14-byte threshold
     
     mov al, 0x0B
-    mov dx, PORT+4
+    mov dx, PORT+4                               ; MCR
     out dx, al                                   ; IRQs enabled, RTS/DSR set
-    
+
+.self_test:
     mov al, 0x1E
-    mov dx, PORT+4
+    mov dx, PORT+4                               ; MCR
     out dx, al                                   ; set in loopback mode
     
-    mov al, 0xAE
+    mov al, TEST_BYTE
     mov dx, PORT+0
-    out dx, al                                   ; check if serial is faulty
+    out dx, al                                   ; THR - check if serial is faulty
+    
+    mov dx, PORT+5                               ; LSR
     in al, dx
-    cmp al, 0xAE                                 ; serial chip should return 0xAE in PORT+0
-    jnz .err
+    test al, LSR_DR                              ; data ready?
+    jz .done
+
+    mov dx, PORT+0
+    in al, dx                                    ; RBR
+    cmp al, TEST_BYTE                            ; serial chip should return 0xAE in PORT+0
+    jnz .done
 
     mov al, 0x0F
-    mov dx, PORT+4
+    mov dx, PORT+4                               ; MCR
     out dx, al                                   ; set to normal operation mode
-    
-    xor eax, eax
-    jmp .done
-
-.err:
-    mov eax, 1
 
 .done:
     pop edx
@@ -71,10 +84,10 @@ serial_init:
 serial_read:
     push edx
 
-    mov dx, PORT+5
+    mov dx, PORT+5                               ; LSR
     in al, dx
 
-    test al, 0x01                                ; byte received?
+    test al, LSR_DR                              ; data ready?
     jz .err                                      ; no, done
     
     xor eax, eax
@@ -94,10 +107,10 @@ serial_read:
 serial_write:
     push edx
     
-    mov dx, PORT+5
+    mov dx, PORT+5                               ; LSR
     in al, dx
 
-    test al, 0x20                                ; transmit empty?
+    test al, LCR_THRE                            ; can accept another byte?
     jz .done                                     ; no, done
     
     mov al, [esp+4+4]
