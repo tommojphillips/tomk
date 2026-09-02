@@ -19,6 +19,15 @@
 #define kdprint(...)
 #endif
 
+extern uintptr_t kstack_base;
+extern uintptr_t kstack_top;
+
+/* Kernel version; major */
+extern int kver_major;
+
+/* Kernel version; minor */
+extern int kver_minor;
+
 /* Print to stdout and serial */
 void kprintf(const char* fmt, ...);
 
