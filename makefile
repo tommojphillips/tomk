@@ -105,38 +105,47 @@ all: $(OUT_DIR)/$(OUT_FN).elf
 
 $(OUT_DIR):
 	@if not exist "$(OUT_DIR)" mkdir "$(OUT_DIR)"
-
+	
+$(OBJ_DIR):
+	@if not exist "$(OBJ_DIR)" mkdir "$(OBJ_DIR)"
 # ------------------------------------------------------------
 # Link
 # ------------------------------------------------------------
 
 $(OUT_DIR)/$(OUT_FN).elf: $(OBJECTS) $(LINKER) $(OUT_DIR)
-	$(LD) $(LDFLAGS) -Map=$(OUT_DIR)/$(OUT_FN).map -T $(LINKER) -o $@ $(OBJECTS)
+	@$(LD) $(LDFLAGS) -Map=$(OUT_DIR)/$(OUT_FN).map -T $(LINKER) -o $@ $(OBJECTS)
 
 ifeq ($(DEBUG),1)
-	$(OBJCOPY) --only-keep-debug $@ $(OUT_DIR)/$(OUT_FN).sym
-	$(OBJCOPY) --strip-debug $@
+	@$(OBJCOPY) --only-keep-debug $@ $(OUT_DIR)/$(OUT_FN).sym
+	@$(OBJCOPY) --strip-debug $@
+	@echo out -^> $(OUT_DIR)/$(OUT_FN).sym
 endif
+	@echo out -^> $(OUT_DIR)/$(OUT_FN).map
 	@echo out -^> $@
+
 # ------------------------------------------------------------
 # C compilation
 # ------------------------------------------------------------
 
 $(OBJ_DIR)/libc/%.c.o: src/libc/%.c
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(CC) -c $< -o $@ $(INCLUDES) -DLIBK $(CFLAGS)
+	@$(CC) -c $< -o $@ $(INCLUDES) -DLIBK $(CFLAGS) >nul 2>&1
+	@echo $<
 
 $(OBJ_DIR)/driver/%.c.o: src/driver/%.c
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(CC) -c $< -o $@ $(INCLUDES) $(CFLAGS)
+	@$(CC) -c $< -o $@ $(INCLUDES) $(CFLAGS)
+	@echo $<
 
 $(OBJ_DIR)/kernel/%.c.o: src/kernel/%.c
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(CC) -c $< -o $@ $(INCLUDES) $(CFLAGS)
+	@$(CC) -c $< -o $@ $(INCLUDES) $(CFLAGS)
+	@echo $<
 
 $(OBJ_DIR)/disasm/%.c.o: src/disasm/%.c
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(CC) -c $< -o $@ $(INCLUDES) $(CFLAGS)
+	@$(CC) -c $< -o $@ $(INCLUDES) $(CFLAGS)
+	@echo $<
 
 # ------------------------------------------------------------
 # Assembly
@@ -144,23 +153,28 @@ $(OBJ_DIR)/disasm/%.c.o: src/disasm/%.c
 
 $(OBJ_DIR)/boot/%.asm.o: src/boot/%.asm
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@echo $<
 
 $(OBJ_DIR)/libc/%.asm.o: src/libc/%.asm
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@echo $<
 
 $(OBJ_DIR)/driver/%.asm.o: src/driver/%.asm
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@echo $<
 
 $(OBJ_DIR)/kernel/%.asm.o: src/kernel/%.asm
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@echo $<
 
 $(OBJ_DIR)/disasm/%.asm.o: src/disasm/%.asm
 	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
+	@echo $<
 
 # ------------------------------------------------------------
 # Clean
@@ -169,16 +183,8 @@ $(OBJ_DIR)/disasm/%.asm.o: src/disasm/%.asm
 .PHONY: clean
 
 clean:
-	@if exist "$(OBJ_DIR)" rmdir /S /Q "$(OBJ_DIR)"
-	@if exist "$(OUT_DIR)" rmdir /S /Q "$(OUT_DIR)"
-
-# ------------------------------------------------------------
-# Rebuild
-# ------------------------------------------------------------
-
-.PHONY: rebuild
-
-rebuild: clean all
+	@if exist "obj" rmdir /S /Q "obj"
+	@if exist "bin" rmdir /S /Q "bin"
 
 # ------------------------------------------------------------
 # Dependency inclusion
