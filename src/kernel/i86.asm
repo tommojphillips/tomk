@@ -19,10 +19,13 @@ global ind
 global outd
 
 global write_int_gate
-global write_tss_gate
+global write_task_gate
+global write_tss_descriptor
 
 global setregs
 global getregs
+
+global getesp
 
 global setcr0
 global setcr2
@@ -275,49 +278,59 @@ outd:
     pop edx
     ret
   
-; Write interrupt gate
+; Write interrupt gate to IDT
 ; esp+4   = vector
-; esp+8   = offset
-; esp+12  = ar byte
-; esp+16  = selector
+; esp+8   = selector
+; esp+12  = offset
 write_int_gate:
-    push ebx
     push esi
     push edi
 
     xor ecx, ecx
-    mov cl, [esp+12+4]         ; vector
-    mov esi, [esp+12+8]        ; offset
-    mov bl, [esp+12+12]        ; ar byte
-    mov ax, [esp+12+16]        ; selector
-    mov edi, idt               ; idt base
-
-    mov [edi+ecx*8+0], si      ; offset lower 16bit
-    mov [edi+ecx*8+2], ax      ; selector
+    mov cl, [esp+8+4]                            ; vector
+    mov ax, [esp+8+8]                            ; selector
+    mov esi, [esp+8+12]                          ; offset
+    mov edi, idt                                 ; idt base
+ 
+    mov [edi+ecx*8+0], si                        ; offset lower 16bit
+    mov [edi+ecx*8+2], ax                        ; selector
     mov byte [edi+ecx*8+4], 0
-    mov [edi+ecx*8+5], bl      ; ar
+    mov [edi+ecx*8+5], 10001110b                 ; P=1 DPL=00 S=0 TYPE=1110 (INT 386)  
     shr esi, 16
-    mov [edi+ecx*8+6], si      ; offset upper 16bit
+    mov [edi+ecx*8+6], si                        ; offset upper 16bit
 
     pop edi
     pop esi
-    pop ebx
     ret
-    
-; Write call gate
-; esp+4  = offset
-; esp+8  = selector
-; esp+12 = ar byte
-; esp+16 = index
-write_call_gate:
+
+; Write task gate to IDT
+; esp+4  = vector
+; esp+8  = TSS selector
+write_task_gate:
+    push ecx
+    push edi
+
+    xor ecx, ecx
+    mov cl, [esp+8+4]                            ; vector
+    mov ax,  [esp+8+8]                           ; TSS selector
+    mov edi, idt                                 ; idt base
+
+    mov [edi+ecx*8+0], ax                        ; TSS selector
+    mov word [edi+ecx*8+2], 0
+    mov word [edi+ecx*8+4], 0
+    mov byte [edi+ecx*8+5], 10000101b            ; P=1 DPL=00 S=0 TYPE=0101 (TASK)
+    mov word [edi+ecx*8+6], 0
+
+    pop edi
+    pop ecx
     ret
-      
-; Write tss gate
+
+; Write tss descriptor to GDT
 ; esp+4  = selector
 ; esp+8  = limit
 ; esp+12 = ar
 ; esp+16 = base
-write_tss_gate:
+write_tss_descriptor:
     push ebx
     push esi
     push edi
@@ -327,8 +340,7 @@ write_tss_gate:
     mov bx, [esp+12+12]        ; ar word
     mov eax, [esp+12+16]       ; base
     mov edi, gdt               ; gdt base
-    mov edx, esi
-    
+        
     and ecx, 0xFFF8            ; selector & 0xFFF8
     
     mov [edi+ecx*1+0], si      ; limit lower 16bit
@@ -349,12 +361,10 @@ write_tss_gate:
     pop ebx
     ret
 
-; Write task gate
-; esp+4  = offset
-; esp+8  = selector
-; esp+12 = ar byte
-; esp+16 = index
-write_task_gate:
+; Get ESP
+; returns value
+getesp:
+    mov eax, esp
     ret
 
 ; Set CR0

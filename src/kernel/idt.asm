@@ -52,87 +52,97 @@ Section .text
 idt_init:
 
     lidt [idt_descriptor]
-
-    push KCODE                         ; selector
-    push 10001110b                     ; access P=1 DPL=00 S=0 TYPE=1110 (INT 386)
-
+    
     ; #DBZ
     push exc_dbz                   ; offset
+    push KCODE                     ; selector
     push vec_dbz                   ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #TRAP
     push exc_trap                  ; offset
+    push KCODE                     ; selector
     push vec_trap                  ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #NMI
     push exc_nmi                   ; offset
+    push KCODE                     ; selector
     push vec_nmi                   ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #INT3
     push exc_int3                  ; offset
+    push KCODE                     ; selector
     push vec_int3                  ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #OF
     push exc_of                    ; offset
+    push KCODE                     ; selector
     push vec_of                    ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #BOUND
     push exc_bound                 ; offset
+    push KCODE                     ; selector
     push vec_bound                 ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #UD
     push exc_ud                    ; offset
+    push KCODE                     ; selector
     push vec_ud                    ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #DF
     push exc_df                    ; offset
+    push KCODE                     ; selector
     push vec_df                    ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #TS
     push exc_ts                    ; offset
+    push KCODE                     ; selector
     push vec_ts                    ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #NP
     push exc_np                    ; offset
+    push KCODE                     ; selector
     push vec_np                    ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #SS
     push exc_ss                    ; offset
+    push KCODE                     ; selector
     push vec_ss                    ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #GP
     push exc_gp                    ; offset
+    push KCODE                     ; selector
     push vec_gp                    ; vector 
     call write_int_gate
-    add esp, 8
+    add esp, 12
 
     ; #PF
     push exc_pf                    ; offset
+    push KCODE                     ; selector
     push vec_pf                    ; vector 
     call write_int_gate
-    add esp, 16
+    add esp, 12
 
     ret
 
@@ -178,44 +188,44 @@ exc_handler:
 .skip:
     add esp, 18*4                      ; pop STATE
 
-    push dword 0
+    push 0
     call kernel_panic
     add esp, 4
 
     iret
 
 exc_dbz:
-    push dword 0                      ; fake error code
+    push 0                             ; fake error code
     push exception_dbz
     jmp exc_handler
 
 exc_trap:
-    push dword 0                      ; fake error code
+    push 0                             ; fake error code
     push exception_trap
     jmp exc_handler
 
 exc_nmi:
-    push dword 0                      ; fake error code
+    push 0                             ; fake error code
     push exception_nmi
     jmp exc_handler
 
 exc_int3:
-    push dword 0                      ; fake error code
+    push 0                             ; fake error code
     push exception_int3
     jmp exc_handler
 
 exc_of:
-    push dword 0                      ; fake error code
+    push 0                             ; fake error code
     push exception_of
     jmp exc_handler
 
 exc_bound:
-    push dword 0                      ; fake error code
+    push 0                             ; fake error code
     push exception_bound
     jmp exc_handler
 
 exc_ud:
-    push dword 0                      ; fake error code
+    push 0                             ; fake error code
     push exception_ud
     jmp exc_handler
 

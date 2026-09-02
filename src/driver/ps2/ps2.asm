@@ -60,12 +60,11 @@ ps2_init:
     mov dword [kb_idx], 0             ; kb_idx = 0;
 
     ; IRQ 1
-    push KCODE                         ; selector
-    push 10001110b                     ; access P=1 DPL=00 S=0 TYPE=1110 (INT 386)    
     push ps2_int_handler               ; offset
+    push KCODE                         ; selector    
     push PIC_BASE+IRQ1                 ; vector 
     call write_int_gate
-    add esp, 16
+    add esp, 12
 
     push IRQ1                          ; IRQ1 (KB)
     call pic_enable_irq

@@ -7,10 +7,6 @@
 
 #include <stdint.h>
 
-#define TSS_SIZE 0x1000
-#define IDT_SIZE 0x1000
-#define GDT_SIZE 0x1000
-
 typedef struct cpu_regs_t {
     uint32_t eax;
     uint32_t ecx;
@@ -96,6 +92,10 @@ extern void getregs(cpu_regs_t* regs);
 /* Get CPU State
  state: the cpu state */
 extern void getstate(const cpu_state_t* state);
+
+/* Get ESP
+ Returns ESP */
+extern uint32_t getesp(void);
 
 /* Get CR0
  Returns CR0 */
@@ -203,6 +203,6 @@ extern void write_int_gate(uint8_t vector, uint8_t ar, uint16_t selector, uint32
  ar:       tss ar byte
  limit:    segment limit
  base:     segment base */
-extern void write_tss_gate(uint16_t selector, uint8_t ar, uint32_t limit, uint32_t base);
+extern void write_tss_descriptor(uint16_t selector, uint8_t ar, uint32_t limit, uint32_t base);
 
 #endif

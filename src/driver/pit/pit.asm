@@ -32,12 +32,11 @@ Section .text
 pit_init:
 
     ; IRQ 0
-    push KCODE                         ; selector
-    push 10001110b                     ; access P=1 DPL=00 S=0 TYPE=1110 (INT 386)    
     push timer_int_handler             ; offset
+    push KCODE                         ; selector
     push PIC_BASE+IRQ0                 ; vector 
     call write_int_gate
-    add esp, 16
+    add esp, 12
 
     ; b00110100
     ; b00xxxxxx = Channel 0
