@@ -25,18 +25,17 @@ extern pg_invalidate                             ; paging.asm
 
 global kernel_init
 global kernel_hang
-global kernel_stack_bottom
-global kernel_stack_top
+global kstack_base
+global kstack_top
 
 %include "src\kernel\include\common.inc"
 %include "src\kernel\include\paging.inc"
 
 section .bss
-    align 16, db ?                               ; reserve 16kb for stack
-kernel_stack_bottom:
-    resb 16*1024
-kernel_stack_top:
-
+    align 16
+kstack_base:
+    resb 1024*1024
+kstack_top:
 section .rodata
     hang_str db "FATAL: HANG at EIP 0x%8.8X", 0
 
@@ -44,7 +43,7 @@ section .text
 
 ; kernel init
 kernel_init:
-    mov esp, kernel_stack_top                    ; setup stack
+    mov esp, kstack_top                          ; setup stack
     
     ; compute .boot_section size
     mov edx, sec_boot_end
