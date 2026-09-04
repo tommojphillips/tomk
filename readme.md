@@ -9,24 +9,16 @@
 | `QEMU`               | `3.0.93.0` | [QEMU for Windows](https://qemu.weilnetz.de/w64/)                                              |
 
 ## Build
- ```bat
- cd tomk
- ```
+ `cd tomk`
 
- Debug
- ```bat
- make DEBUG=1
- ```
+#### Debug
+ `make DEBUG=1`
 
- Release
- ```bat
- make DEBUG=0
- ```
+#### Release
+ `make DEBUG=0`
  
- Clean
- ```bat
- make clean
- ```
+#### Clean
+ `make clean`
  
 ## Usage
  `qemu-system-i386 -kernel tomk.elf -m 2048 -serial stdio`
