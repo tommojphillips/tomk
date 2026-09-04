@@ -2,7 +2,7 @@
 # TOMK Makefile GNUWin (GNU Make 3.81 for Windows)
 # ============================================================
 
-OUT_FN := kernel
+OUT_FN := tomk
 
 DEBUG ?= 1
 
