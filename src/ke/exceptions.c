@@ -9,6 +9,8 @@
 #include <i86.h>
 #include <paging.h>
 #include <i80386_mnem.h>
+
+#include <kdprint.h>
 #include <kernel.h>
 
 /* Unmapped write access */

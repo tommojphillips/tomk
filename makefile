@@ -166,7 +166,7 @@ define MODULE_library_rule
 $$($(1)_LIB): $$($(1)_OBJ)
 	@if not exist "$$(dir $$@)" mkdir "$$(dir $$@)"
 	@$$(AR) rcs $$@ $$^
-	@echo out -^> $$@
+	@echo $$@
 endef
 
 $(foreach module,$(MODULES),$(eval $(call MODULE_library_rule,$(module))))
@@ -176,6 +176,7 @@ $(foreach module,$(MODULES),$(eval $(call MODULE_library_rule,$(module))))
 # ------------------------------------------------------------
 
 $(OUT_DIR)/$(OUT_FN).elf: $(LIBS) $(LINKER) $(OUT_DIR)
+	@echo Linking...
 	@$(LD) $(LDFLAGS) \
 		-Map=$(OUT_DIR)/$(OUT_FN).map \
 		-T $(LINKER) \
@@ -187,11 +188,11 @@ $(OUT_DIR)/$(OUT_FN).elf: $(LIBS) $(LINKER) $(OUT_DIR)
 ifeq ($(DEBUG),1)
 	@$(OBJCOPY) --only-keep-debug $@ $(OUT_DIR)/$(OUT_FN).sym
 	@$(OBJCOPY) --strip-debug $@
-	@echo out -^> $(OUT_DIR)/$(OUT_FN).sym
+	@echo $(OUT_DIR)/$(OUT_FN).sym
 endif
 
-	@echo out -^> $(OUT_DIR)/$(OUT_FN).map
-	@echo out -^> $@
+	@echo $(OUT_DIR)/$(OUT_FN).map
+	@echo $@
 
 # ------------------------------------------------------------
 # C compilation

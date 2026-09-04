@@ -7,7 +7,6 @@
 
 #include <mb.h>
 #include <kmmap.h>
-#include <kernel.h>
 #include <assert.h>
 
 extern multiboot_info_t* mb_info_ptr; /* entry.asm */

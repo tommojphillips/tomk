@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <kernel.h>
 #include <pmm.h>
 #include <vmm.h>
 #include <kalloc.h>
@@ -18,6 +17,9 @@
 #include <paging.h>
 #include <align.h>
 #include <i86.h>
+
+#include <kdprint.h>
+#include <kernel.h>
 
 typedef struct kshell_command_t {
 	const char* name;

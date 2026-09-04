@@ -5,11 +5,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdarg.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
+#include <kdprint.h>
 #include <kernel.h>
 #include <linkvars.h>
 
@@ -42,19 +41,6 @@ void kernel_main(void) {
 	kernel_hang();
 }
 
-void kprintf(const char* fmt, ...) {
-	va_list args;
-    va_start(args, fmt);
-    vfprintf(STDIO, fmt, args);
-	vfprintf(SERIAL, fmt, args);
-    va_end(args);
-}
-void kdprintf(const char* fmt, ...) {
-	va_list args;
-    va_start(args, fmt);
-	vfprintf(SERIAL, fmt, args);
-    va_end(args);
-}
 void kernel_panic(const char* fmt, ...) {
 	const char* panic_str = "\nKERNEL PANIC\n";
 	va_list args;

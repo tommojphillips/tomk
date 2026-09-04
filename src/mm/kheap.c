@@ -14,10 +14,12 @@
 
 #include <kheap.h>
 #include <vmm.h>
-#include <kernel.h>
-#include <assert.h>
 #include <align.h>
 #include <paging.h>
+
+#include <assert.h>
+#include <kdprint.h>
+#include <kernel.h>
 
 #define HEAP_GROW_PAGES   0x10
 

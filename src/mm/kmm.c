@@ -39,7 +39,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <kernel.h>
 #include <kmmap.h>
 #include <kheap.h>
 #include <kalloc.h>
@@ -49,6 +48,9 @@
 #include <paging.h>
 #include <linkvars.h>
 #include <align.h>
+
+#include <kdprint.h>
+#include <kernel.h>
 
 void kmm_init(void) {
 	uintptr_t kbase = 0;

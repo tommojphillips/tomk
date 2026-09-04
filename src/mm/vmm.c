@@ -12,9 +12,11 @@
 #include <pmm.h>
 #include <paging.h>
 #include <kalloc.h>
-#include <kernel.h>
-#include <assert.h>
 #include <align.h>
+
+#include <assert.h>
+#include <kdprint.h>
+#include <kernel.h>
 
 /* CEIL DIV */
 #define CEIL_DIV(x,y) (((x) + (y) - 1) / (y))
