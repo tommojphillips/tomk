@@ -18,8 +18,8 @@ global pg_chgpriv
 global pg_pd
 global pg_pt
 
-%include "src\kernel\include\common.inc"
-%include "src\kernel\include\paging.inc"
+%include "src\include\common.inc"
+%include "src\mm\include\paging.inc"
 
 ; Page directory / Page tables
 Section .bss

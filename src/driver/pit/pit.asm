@@ -22,7 +22,7 @@ PIT_DIVISOR equ (PIT_FREQ/PIT_HZ)
 PIT_PORT_1  equ 0x40
 PIT_PORT_2  equ 0x43
 
-%include "src\kernel\include\common.inc"
+%include "src\include\common.inc"
 
 Section .bss
     timer_ticks dd ?

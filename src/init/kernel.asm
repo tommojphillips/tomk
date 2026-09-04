@@ -28,8 +28,8 @@ global kernel_hang
 global kstack_base
 global kstack_top
 
-%include "src\kernel\include\common.inc"
-%include "src\kernel\include\paging.inc"
+%include "src\include\common.inc"
+%include "src\mm\include\paging.inc"
 
 section .bss
     align 16

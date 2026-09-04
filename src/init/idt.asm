@@ -23,7 +23,7 @@ extern kernel_panic    ; kernel.asm
 global idt_init
 global idt
 
-%include "src\kernel\include\common.inc"
+%include "src\include\common.inc"
 
 vec_dbz     equ 0x00 ; Divide by zero interrupt
 vec_trap    equ 0x01 ; Trap interrupt

@@ -19,7 +19,7 @@ global ps2_getscancode
 global ps2_sc2ch
 global ps2_cpu_reset
 
-%include "src\kernel\include\common.inc"
+%include "src\include\common.inc"
 
 IRQ1        equ 1
 KB_BUF_SIZE equ 32

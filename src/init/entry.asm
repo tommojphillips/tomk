@@ -30,8 +30,9 @@ extern pg_pt                                     ; paging.asm
 global mb_info_ptr
 global _start
 
-%include "src\kernel\include\common.inc"
-%include "src\kernel\include\paging.inc"
+%include "src\include\common.inc"
+%include "src\mm\include\paging.inc"
+%include "src\init\include\mb.inc"
 
 section .bss
     mb_info_ptr dd ?    

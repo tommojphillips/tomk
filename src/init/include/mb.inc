@@ -1,4 +1,4 @@
-; multiboot.asm
+; mb.inc
 ; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
 ;
 ; Multiboot header

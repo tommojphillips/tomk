@@ -8,7 +8,7 @@ extern write_tss_descriptor
 
 global tss_init
 
-%include "src\kernel\include\common.inc"
+%include "src\include\common.inc"
 
 Section .bss
     align 8, db 0
