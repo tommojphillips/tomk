@@ -52,7 +52,7 @@
 #include <kdprint.h>
 #include <kernel.h>
 
-void kmm_init(void) {
+void mm_init(void) {
 	uintptr_t kbase = 0;
 	uintptr_t kend = 0;
 	uintptr_t ksize = 0;
