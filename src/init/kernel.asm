@@ -13,7 +13,7 @@ extern pit_init                                  ; driver\pit\pit.asm
 extern ps2_init                                  ; driver\ps2\ps2.asm
 extern serial_init                               ; driver\uart\uart.asm
 
-extern kernel_main                               ; kernel.c
+extern kmain                                     ; kernel.c
 extern kprintf                                   ; kernel.c
 extern kdprintf                                  ; kernel.c
 
@@ -73,7 +73,7 @@ kernel_init:
 
     sti                                          ; enable interrupts
 
-    call kernel_main                             ; call into the c entry point
+    call kmain                                   ; call into the c entry point
     call khang                                   ; hang
 
 ; Kernel hang; hang system indefinitely

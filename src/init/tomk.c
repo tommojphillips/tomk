@@ -14,12 +14,12 @@
 
 extern void tty_init(void); /* driver/tty.c */
 extern void kshell(void);   /* shell.c */
-extern void kmm_init(void); /* kmm.c */
+extern void mm_init(void);  /* mminit.c */
 
 int kver_major = 0;
 int kver_minor = 1;
 
-void kernel_main(void) {	
+void kmain(void) {	
 	tty_init();
 	kprint("TOMK v%d.%d\n\n", kver_major, kver_minor);
 
@@ -31,8 +31,8 @@ void kernel_main(void) {
 	kdprint(".bss    %08X-%08X\n\n", V2P((uintptr_t)&sec_bss_start), V2P((uintptr_t)&sec_bss_end));
 #endif
 
-	/* Init Memory Manager */
-	kmm_init();
+	/* Init memory stack */
+	mm_init();
 	
 	/* Launch kshell (Kernel Test Shell) */
 	kshell();
