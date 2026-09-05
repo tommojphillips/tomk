@@ -38,10 +38,10 @@ void kernel_main(void) {
 	kshell();
 
 	/* We shouldnt get here. Hang the system */
-	kernel_hang();
+	khang();
 }
 
-void kernel_panic(const char* fmt, ...) {
+void kpanic(const char* fmt, ...) {
 	const char* panic_str = "\nKERNEL PANIC\n";
 	va_list args;
     va_start(args, fmt);
@@ -51,5 +51,5 @@ void kernel_panic(const char* fmt, ...) {
 	vfprintf(SERIAL, fmt, args);
     va_end(args);
 
-	kernel_hang();
+	khang();
 }

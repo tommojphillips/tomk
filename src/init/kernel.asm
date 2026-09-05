@@ -24,7 +24,7 @@ extern pg_unmap                                  ; paging.asm
 extern pg_invalidate                             ; paging.asm
 
 global kernel_init
-global kernel_hang
+global khang
 global kstack_base
 global kstack_top
 
@@ -74,11 +74,11 @@ kernel_init:
     sti                                          ; enable interrupts
 
     call kernel_main                             ; call into the c entry point
-    call kernel_hang                             ; hang
+    call khang                                   ; hang
 
 ; Kernel hang; hang system indefinitely
 ; DOES NOT RETURN!
-kernel_hang:
+khang:
     dec [esp+0]
     push hang_str                                ; print hang msg
     call kdprintf

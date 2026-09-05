@@ -48,7 +48,7 @@ void exception_dbz(cpu_state_t* state) {
         priv = "User";
     }
     i80386_mnem_get_str(state->int_eip, buffer, 32);
-    kernel_panic(" Exception thrown at 0x%08X\n %08X: Integer division by zero (%s)\n  -> %s\n",
+    kpanic(" Exception thrown at 0x%08X\n %08X: Integer division by zero (%s)\n  -> %s\n",
         state->int_eip, INTEGER_DIVIDE_BY_ZERO, priv, buffer);
 }
 void exception_trap(cpu_state_t* state) {
@@ -120,28 +120,28 @@ void exception_pf(cpu_state_t* state) {
         /* Treat unmapped addresses that have the RW bit clear as a ummapped-read-access */
         case (PTE_NP | PTE_RO):
             i80386_mnem_get_str(state->int_eip, buffer, 32);
-            kernel_panic(" Exception thrown at 0x%08X\n %08X: Unmapped read access (%s)\n reading location 0x%08X -> %s\n",
+            kpanic(" Exception thrown at 0x%08X\n %08X: Unmapped read access (%s)\n reading location 0x%08X -> %s\n",
                 state->int_eip, UNMAPPED_READ_ACCESS, priv, state->cr2, buffer);
             break;
 
         /* Treat mapped addresses that have the RW bit clear as a read-access-violation */
         case (PTE_P | PTE_RO):
             i80386_mnem_get_str(state->int_eip, buffer, 32);
-            kernel_panic(" Exception thrown at 0x%08X\n %08X: Read access violation (%s)\n reading location 0x%08X -> %s\n",
+            kpanic(" Exception thrown at 0x%08X\n %08X: Read access violation (%s)\n reading location 0x%08X -> %s\n",
                 state->int_eip, READ_ACCESS_VIOLATION, priv, state->cr2, buffer);
             break;
         
         /* Treat unmapped addresses that have the RW bit set as a ummapped-write-access */        
         case (PTE_NP | PTE_RW):
             i80386_mnem_get_str(state->int_eip, buffer, 32);
-            kernel_panic(" Exception thrown at 0x%08X\n %08X: Unmapped write access (%s)\n writing location 0x%08X -> %s\n",
+            kpanic(" Exception thrown at 0x%08X\n %08X: Unmapped write access (%s)\n writing location 0x%08X -> %s\n",
                 state->int_eip, UNMAPPED_WRITE_ACCESS, priv, state->cr2, buffer);
             break;
 
         /* Treat mapped addresses that have the RW bit set as a write-access-violation */
         case (PTE_P | PTE_RW):
             i80386_mnem_get_str(state->int_eip, buffer, 32);
-            kernel_panic(" Exception thrown at 0x%08X\n %08X: Write access violation (%s)\n writing location 0x%08X -> %s\n",
+            kpanic(" Exception thrown at 0x%08X\n %08X: Write access violation (%s)\n writing location 0x%08X -> %s\n",
                 state->int_eip, WRITE_ACCESS_VIOLATION, priv, state->cr2, buffer);
             break;
     }    

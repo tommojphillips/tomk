@@ -12,7 +12,7 @@
 #ifdef ASSERT_ENABLE
 #define STRINGIFY_(x) #x
 #define STRINGIFY(x) STRINGIFY_(x)
-#define assert(x) do { if (!(x)) { kernel_panic("ASSERT: \""#x"\" FAILED. in " __FILE__ ":" STRINGIFY(__LINE__) "\n"); } } while(0)
+#define assert(x) do { if (!(x)) { kpanic("ASSERT: \""#x"\" FAILED. in " __FILE__ ":" STRINGIFY(__LINE__) "\n"); } } while(0)
 
 #else
 #define assert(x, ...)

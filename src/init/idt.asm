@@ -18,7 +18,7 @@ extern exception_ss    ; exceptions.c
 extern exception_gp    ; exceptions.c
 extern exception_pf    ; exceptions.c
 extern write_int_gate  ; idt.asm
-extern kernel_panic    ; kernel.asm
+extern kpanic          ; kernel.asm
 
 global idt_init
 global idt
@@ -189,7 +189,7 @@ exc_handler:
     add esp, 18*4                      ; pop STATE
 
     push 0
-    call kernel_panic
+    call kpanic
     add esp, 4
 
     iret

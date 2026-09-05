@@ -18,9 +18,9 @@ extern int kver_major;
 extern int kver_minor;
 
 /* Panic (hang system) */
-void kernel_panic(const char* fmt, ...);
+void kpanic(const char* fmt, ...);
 
 /* Hang system */
-void kernel_hang(void);
+void khang(void);
 
 #endif
