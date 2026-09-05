@@ -1,4 +1,20 @@
 # TOMK
+ x86 32bit kernel project
+
+## Implemented systems
+ - Multiboot v1 boot support
+ - Exception handling
+ - Higher-half kernel
+ - Kernel address-space protection
+ - Memory stack
+   - Physical memory manager (PMM)
+   - Virtual memory manager (VMM)
+   - Kernel Heap (KHEAP)
+ - LIBC implementation
+ - Debugging infrastructure
+ - Timer/Counter driver
+ - TTY driver
+ - PS/2 driver
 
 ## Windows toolchain
 
