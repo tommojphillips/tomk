@@ -25,10 +25,10 @@ void kernel_main(void) {
 
 #if 1
 	kdprint(".boot   %08X-%08X\n", (uintptr_t)&sec_boot_start, (uintptr_t)&sec_boot_end);
-	kdprint(".text   %08X-%08X\n", (uintptr_t)&sec_text_start, (uintptr_t)&sec_text_end);
-	kdprint(".rodata %08X-%08X\n", (uintptr_t)&sec_rodata_start, (uintptr_t)&sec_rodata_end);
-	kdprint(".data   %08X-%08X\n", (uintptr_t)&sec_data_start, (uintptr_t)&sec_data_end);
-	kdprint(".bss    %08X-%08X\n\n", (uintptr_t)&sec_bss_start, (uintptr_t)&sec_bss_end);
+	kdprint(".text   %08X-%08X\n", V2P((uintptr_t)&sec_text_start), V2P((uintptr_t)&sec_text_end));
+	kdprint(".rodata %08X-%08X\n", V2P((uintptr_t)&sec_rodata_start), V2P((uintptr_t)&sec_rodata_end));
+	kdprint(".data   %08X-%08X\n", V2P((uintptr_t)&sec_data_start), V2P((uintptr_t)&sec_data_end));
+	kdprint(".bss    %08X-%08X\n\n", V2P((uintptr_t)&sec_bss_start), V2P((uintptr_t)&sec_bss_end));
 #endif
 
 	/* Init Memory Manager */
