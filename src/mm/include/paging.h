@@ -1,11 +1,14 @@
 /* paging.h
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ *
+ * x86-32 paging abstraction
  */
 
 #ifndef PAGING_H
 #define PAGING_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #define PAGE_SIZE     4096
 #define PD_ENTRY_SIZE 4

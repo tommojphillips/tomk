@@ -1,12 +1,13 @@
 /* kinit_alloc.h
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
  *
- *  Primitive Allocator for early kernel initialization
+ *  Kernel initialization allocator
  */
 
 #ifndef KINIT_ALLOC_H
 #define KINIT_ALLOC_H
 
+#include <stdint.h>
 #include <stddef.h>
 
 /* kinit_alloc init */
