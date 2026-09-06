@@ -18,7 +18,17 @@ typedef struct cpu_regs_t {
     uint32_t edi;
 } cpu_regs_t;
 
+typedef struct exception_frame_t {
+    uint32_t error;
+    uint32_t eip;
+    uint32_t cs;
+    uint32_t eflags;
+} exception_frame_t;
+
 typedef struct cpu_state_t {
+    uint32_t eip;
+    uint32_t eflags;
+
     uint32_t cr0;
     uint32_t cr2;
     uint32_t cr3;
@@ -38,12 +48,12 @@ typedef struct cpu_state_t {
     uint32_t ebp;
     uint32_t esi;
     uint32_t edi;
-
-    uint32_t int_error;
-    uint32_t int_eip;
-    uint32_t int_cs;
-    uint32_t int_eflags;
 } cpu_state_t;
+
+typedef struct exception_state_t {
+    cpu_state_t cpu;
+    exception_frame_t exception;
+} exception_state_t;
 
 /* Input 8bit value from IO port
  port:   the IO port
@@ -81,17 +91,13 @@ extern void outd(uint16_t port, uint32_t value);
  output_state: the cpu state after the interrupt has been invoked */
 extern void int86(uint8_t vector, const cpu_regs_t* input_regs, cpu_state_t* output_state);
 
-/* Set GPRs 
- regs: the GPRs to set */
-extern void setregs(cpu_regs_t* regs);
-
-/* Get GPRs 
- regs: the GPRs */
-extern void getregs(cpu_regs_t* regs);
-
 /* Get CPU State
  state: the cpu state */
 extern void getstate(const cpu_state_t* state);
+
+/* Set CPU State
+ state: the cpu state */
+extern void setstate(const cpu_state_t* state);
 
 /* Get ESP
  Returns ESP */
@@ -188,7 +194,7 @@ extern void disable_interrupts(void);
  spins: */
 extern void spinwait(uint32_t spins);
 
-/* Wait using hlt instruction. */
+/* Wait using hlt instruction */
 extern void haltwait(void);
 
 /* Write INT Gate to IDT

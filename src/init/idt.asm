@@ -149,44 +149,46 @@ idt_init:
 ; EXCEPTION HANDLERS
 
 exc_handler:    
-    xchg edi, [esp+0]                   ; xchg ROUTINE and edi
-    push esi
-    push ebp
-    push esp
-    push ebx
-    push edx
-    push ecx
-    push eax
+    xchg edi, [esp+0]                  ; save edi; save routine in edi
+    push esi                           ; save esi
+    push ebp                           ; save ebp
+    push esp                           ; save esp
+    push ebx                           ; save ebx
+    push edx                           ; save edx
+    push ecx                           ; save ecx
+    push eax                           ; save eax
     
-    push gs
-    push fs
-    push ds
-    push ss
-    push cs
-    push es
+    push gs                            ; save gs
+    push fs                            ; save fs
+    push ds                            ; save ds
+    push ss                            ; save ss
+    push cs                            ; save cs
+    push es                            ; save es
 
     push eax
     mov eax, cr3
-    xchg eax, [esp+0]                   ; xchg cr3 and eax
+    xchg eax, [esp+0]                  ; save cr3
 
     push eax
     mov eax, cr2
-    xchg eax, [esp+0]                   ; xchg cr2 and eax
+    xchg eax, [esp+0]                  ; save cr2
 
     push eax
     mov eax, cr0
-    xchg eax, [esp+0]                   ; xchg cr0 and eax
+    xchg eax, [esp+0]                  ; save cr0
 
-    test edi, edi                      ; NULL?
-    jz .skip                           ; yes. skip
-;                                      ; no, call ROUTINE
+    pushfd                             ; save eflags
+    push 0                             ; save eip
+
+    test edi, edi                      ; routine == NULL?
+    jz .skip                           ; yes; dont call routine
     
     push esp
     call edi
     add esp, 4
 
 .skip:
-    add esp, 18*4                      ; pop STATE
+    add esp, 20*4                      ; pop STATE
 
     push 0
     call kpanic

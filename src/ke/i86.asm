@@ -22,8 +22,8 @@ global write_int_gate
 global write_task_gate
 global write_tss_descriptor
 
-global setregs
-global getregs
+global setstate
+global getstate
 
 global getesp
 
@@ -57,38 +57,45 @@ global haltwait
 global wait_ms
 
 struc REGS
-    .edi    resd 1
-    .esi    resd 1
-    .ebp    resd 1
-    .esp    resd 1
-    .ebx    resd 1
-    .edx    resd 1
-    .ecx    resd 1
-    .eax    resd 1
+    .eip    resd 1
+    .eflags resd 1
+
+    .cr0    resd 1
+    .cr2    resd 1
+    .cr3    resd 1
+
     .es     resd 1
     .cs     resd 1
     .ss     resd 1
     .ds     resd 1
     .fs     resd 1
     .gs     resd 1
-    .eflags resd 1
+
+    .eax    resd 1
+    .ecx    resd 1
+    .edx    resd 1
+    .ebx    resd 1
+    .esp    resd 1
+    .ebp    resd 1
+    .esi    resd 1
+    .edi    resd 1
 endstruc
 
 REGS.ax equ REGS.eax
 REGS.al equ REGS.eax
-REGS.ah equ REGS.eax + 1
+REGS.ah equ REGS.eax+1
 
 REGS.cx equ REGS.ecx
 REGS.cl equ REGS.ecx
-REGS.ch equ REGS.ecx + 1
+REGS.ch equ REGS.ecx+1
 
 REGS.dx equ REGS.edx
 REGS.dl equ REGS.edx
-REGS.dh equ REGS.edx + 1
+REGS.dh equ REGS.edx+1
 
 REGS.bx equ REGS.ebx
 REGS.bl equ REGS.ebx
-REGS.bh equ REGS.ebx + 1
+REGS.bh equ REGS.ebx+1
 
 REGS.sp equ REGS.esp
 REGS.bp equ REGS.ebp
@@ -98,106 +105,208 @@ REGS.di equ REGS.edi
 Section .text
 
 ; Set CPU Registers
-; 2nd dword on stack is input registers
+; esp+4 = input_regs
 setregs:
-    mov eax, [esp + 4]                 ; input_regs 
-    test eax, eax                      ; is input_regs NULL?
-    jz setregs_skip                    ; yes, skip assigning.
-    mov edi, [eax + REGS.edi]          ; no, assign it.
-    mov esi, [eax + REGS.esi]
-    mov ebp, [eax + REGS.ebp]
-    mov ebx, [eax + REGS.ebx]
-    mov edx, [eax + REGS.edx]
-    mov ecx, [eax + REGS.ecx]
-    mov eax, [eax + REGS.eax]
-setregs_skip:
+    mov eax, [esp+4]                   ; input_regs 
+    test eax, eax                      ; input_regs == NULL?
+    jz .skip                           ; yes, done
+
+    mov edi, [eax+REGS.edi]
+    mov esi, [eax+REGS.esi]
+    mov ebp, [eax+REGS.ebp]
+    mov ebx, [eax+REGS.ebx]
+    mov edx, [eax+REGS.edx]
+    mov ecx, [eax+REGS.ecx]
+    mov eax, [eax+REGS.eax]
+.skip:
     ret
 
 ; Get CPU Registers
-; 2rd dword on stack is output registers
+; esp+4 = output_regs
 getregs:
     pusha                              ; save register state
-    mov ebp, [esp + 36]                ; output_regs (+32 from pusha)
-    test ebp, ebp                      ; output_regs == NULL
+    mov edx, [esp+36]                  ; output_regs (+32 from pusha)
+    test edx, edx                      ; output_regs == NULL
     jz .skip                           ; yes, skip
-                                       ; no, write it.
 
-    mov eax, [esp + 0]
-    mov [ebp + REGS.edi], eax
+    mov eax, [esp+0]
+    mov [edx+REGS.edi], eax
 
-    mov eax, [esp + 4]
-    mov [ebp + REGS.esi], eax
+    mov eax, [esp+4]
+    mov [edx+REGS.esi], eax
 
-    mov eax, [esp + 8]
-    mov [ebp + REGS.ebp], eax
+    mov eax, [esp+8]
+    mov [edx+REGS.ebp], eax
 
-    mov eax, [esp + 12]
-    mov [ebp + REGS.esp], eax
+    mov eax, [esp+12]
+    mov [edx+REGS.esp], eax
 
-    mov eax, [esp + 16]
-    mov [ebp + REGS.ebx], eax
+    mov eax, [esp+16]
+    mov [edx+REGS.ebx], eax
 
-    mov eax, [esp + 20]
-    mov [ebp + REGS.edx], eax
+    mov eax, [esp+20]
+    mov [edx+REGS.edx], eax
 
-    mov eax, [esp + 24]
-    mov [ebp + REGS.ecx], eax
+    mov eax, [esp+24]
+    mov [edx+REGS.ecx], eax
 
-    mov eax, [esp + 28]
-    mov [ebp + REGS.eax], eax
+    mov eax, [esp+28]
+    mov [edx+REGS.eax], eax
 
 .skip:
     popa                               ; restore regiser state
     ret
 
-; Get CPU State
-; 2rd dword on stack is output state
-getstate:
+; Set CPU State
+; esp+4 = input_state
+setstate:
+    mov edx, [esp+4]                   ; input_state
+    test edx, edx                      ; input_state == NULL
+    jz .done
 
-    push [esp + 4]                     ; output state
+    ; load eflags
+    mov eax, [edx+REGS.eflags]
+    push eax
+    popfd
+
+    ; load cr0
+    mov eax, [edx+REGS.cr0]
+    mov cr0, eax
+    
+    ; load cr2
+    mov eax, [edx+REGS.cr2]
+    mov cr2, eax
+    
+    ; load cr3
+    mov eax, [edx+REGS.cr3]
+    mov cr3, eax
+
+    ; load es
+    mov ax, [edx+REGS.es]
+    mov es, ax
+    
+    ; load ss
+    mov ax, [edx+REGS.ss]
+    mov ss, ax
+
+    ; load ds
+    mov ax, [edx+REGS.ds]
+    mov ds, ax
+
+    ; load fs
+    mov ax, [edx+REGS.fs]
+    mov fs, ax
+
+    ; load gs
+    mov ax, [edx+REGS.gs]
+    mov gs, ax
+
+    ; load eax
+    mov eax, [edx+REGS.eax] 
+
+    ; load ecx
+    mov ecx, [edx+REGS.ecx]
+    
+    ; load edx
+    mov edx, [edx+REGS.edx]
+    
+    ; load ebx
+    mov ebx, [edx+REGS.ebx]
+
+    ; load esp
+    mov esp, [edx+REGS.esp]
+
+    ; load ebp
+    mov ebp, [edx+REGS.ebp]
+    
+    ; load esi
+    mov esi, [edx+REGS.esi]
+    
+    ; load edi
+    mov edi, [edx+REGS.edi]
+
+    ; load eip
+    jmp [edx+REGS.eip]
+
+.done:
+    ret
+
+; Get CPU State
+; esp+4 = output_state
+getstate:
+    push edx
+
+    cmp dword [esp+4+4], 0             ; output_state == NULL
+    jz .done
+
+    ; save register state
+    push [esp+4+4]                     ; output_state
     call getregs
     add esp, 4
+ 
+    mov edx, [esp+4+4]                 ; output_state
+    xor eax, eax                       ; clear upper 16 bits
 
-    mov ebp, [esp + 4]                 ; output_state
-    test ebp, ebp                      ; output_state == NULL
-    jz getstate_done
-    
-    xor eax, eax    
-    mov ax, es
-    mov [ebp + REGS.es], eax
-
-    mov ax, cs
-    mov [ebp + REGS.cs], eax
-
-    mov ax, ss
-    mov [ebp + REGS.ss], eax
-
-    mov ax, ds
-    mov [ebp + REGS.ds], eax
-
-    mov ax, fs
-    mov [ebp + REGS.fs], eax
-
+    ; save gs
     mov ax, gs
-    mov [ebp + REGS.gs], eax
+    mov [edx+REGS.gs], eax
+    
+    ; save fs
+    mov ax, fs
+    mov [edx+REGS.fs], eax
+    
+    ; save ds
+    mov ax, ds
+    mov [edx+REGS.ds], eax
+    
+    ; save ss
+    mov ax, ss
+    mov [edx+REGS.ss], eax
 
+    ; save cs
+    mov ax, cs
+    mov [edx+REGS.cs], eax
+
+    ; save es
+    mov ax, es
+    mov [edx+REGS.es], eax
+
+    ; save cr3
+    mov eax, cr3
+    mov [edx+REGS.cr3], eax
+    
+    ; save cr2
+    mov eax, cr2
+    mov [edx+REGS.cr2], eax
+    
+    ; save cr0
+    mov eax, cr0
+    mov [edx+REGS.cr0], eax
+
+    ; save eflags
     pushfd
     pop eax
-    mov [ebp + REGS.eflags], eax
-getstate_done:
+    mov [edx+REGS.eflags], eax
+
+    ; save eip
+    mov eax, [esp+4+0] ; ret_addr
+    mov [edx+REGS.eip], eax
+
+.done:
+    pop edx
     ret
 
 ; int86;
-; 2nd dword on stack is int vector
-; 3rd dword on stack is input registers pointer
-; 4th dword on stack is output state pointer
+; esp+4  = int vector
+; esp+8  = input registers pointer
+; esp+12 = output state pointer
 int86:
     pusha                              ; save register state
 
-    mov al, [esp + 4]                  ; vector
+    mov al, [esp+4]                    ; vector
     mov [vec], al    
 
-    push [esp + 8]                     ; input regs
+    push [esp+8]                       ; input regs
     call setregs
     add esp, 4
 
@@ -205,7 +314,7 @@ int86:
     db 0xCD
 vec db 0x00
      
-    push [esp + 12]                    ; output state
+    push [esp+12]                      ; output state
     call getstate
     add esp, 4
 
@@ -217,7 +326,7 @@ vec db 0x00
 ; returns value
 inb:
     push edx
-    mov dx, [esp + 8]
+    mov dx, [esp+8]
     xor eax, eax
     in al, dx
     pop edx
@@ -228,7 +337,7 @@ inb:
 ; returns value
 inw:
     push edx
-    mov dx, [esp + 8]
+    mov dx, [esp+8]
     xor eax, eax
     in ax, dx
     pop edx
@@ -239,7 +348,7 @@ inw:
 ; returns value
 ind:
     push edx
-    mov dx, [esp + 8]
+    mov dx, [esp+8]
     xor eax, eax
     in eax, dx
     pop edx
@@ -250,8 +359,8 @@ ind:
 ; esp+8 = value
 outb:
     push edx
-    mov dx, [esp + 8]
-    mov al, [esp + 12]
+    mov dx, [esp+8]
+    mov al, [esp+12]
     out dx, al
     pop edx
     ret
@@ -261,8 +370,8 @@ outb:
 ; esp+8 = value
 outw:
     push edx
-    mov dx, [esp + 8]
-    mov ax, [esp + 12]
+    mov dx, [esp+8]
+    mov ax, [esp+12]
     out dx, ax
     pop edx
     ret
@@ -272,16 +381,16 @@ outw:
 ; esp+8 = value
 outd:
     push edx
-    mov dx, [esp + 8]
-    mov eax, [esp + 12]
+    mov dx, [esp+8]
+    mov eax, [esp+12]
     out dx, eax
     pop edx
     ret
   
 ; Write interrupt gate to IDT
-; esp+4   = vector
-; esp+8   = selector
-; esp+12  = offset
+; esp+4  = vector
+; esp+8  = selector
+; esp+12 = offset
 write_int_gate:
     push esi
     push edi
@@ -304,8 +413,8 @@ write_int_gate:
     ret
 
 ; Write task gate to IDT
-; esp+4  = vector
-; esp+8  = TSS selector
+; esp+4 = vector
+; esp+8 = TSS selector
 write_task_gate:
     push ecx
     push edi
@@ -368,7 +477,7 @@ getesp:
     ret
 
 ; Set CR0
-; esp+4  = value
+; esp+4 = value
 setcr0:
     mov eax, [esp+4]
     mov cr0, eax
@@ -381,7 +490,7 @@ getcr0:
     ret
     
 ; Set CR2
-; esp+4  = value
+; esp+4 = value
 setcr2:
     mov eax, [esp+4]
     mov cr2, eax
@@ -394,7 +503,7 @@ getcr2:
     ret
     
 ; Set CR3
-; esp+4  = value
+; esp+4 = value
 setcr3:
     mov eax, [esp+4]
     mov cr3, eax
@@ -407,7 +516,7 @@ getcr3:
     ret
 
 ; Set DR0
-; esp+4  = value
+; esp+4 = value
 setdr0:
     mov eax, [esp+4]
     mov dr0, eax
@@ -420,7 +529,7 @@ getdr0:
     ret
 
 ; Set DR1
-; esp+4  = value
+; esp+4 = value
 setdr1:
     mov eax, [esp+4]
     mov dr1, eax
@@ -433,7 +542,7 @@ getdr1:
     ret
 
 ; Set DR2
-; esp+4  = value
+; esp+4 = value
 setdr2:
     mov eax, [esp+4]
     mov dr2, eax
@@ -446,7 +555,7 @@ getdr2:
     ret
 
 ; Set DR3
-; esp+4  = value
+; esp+4 = value
 setdr3:
     mov eax, [esp+4]
     mov dr3, eax
@@ -459,7 +568,7 @@ getdr3:
     ret
 
 ; Set DR6
-; esp+4  = value
+; esp+4 = value
 setdr6:
     mov eax, [esp+4]
     mov dr6, eax
@@ -472,7 +581,7 @@ getdr6:
     ret
 
 ; Set DR7
-; esp+4  = value
+; esp+4 = value
 setdr7:
     mov eax, [esp+4]
     mov dr7, eax
@@ -495,7 +604,7 @@ disable_interrupts:
     ret
 
 ; spin-wait x times
-; esp+4  = amount
+; esp+4 = amount
 spinwait:
     mov eax, [esp+4]
     
