@@ -6,7 +6,10 @@
 *.o
 *.bxrc
 
-.vscode
-obj
-bin
-lib
+obj/
+bin/
+lib/
+
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
