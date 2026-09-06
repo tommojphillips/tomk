@@ -11,7 +11,16 @@
             "cStandard": "gnu99",
             "intelliSenseMode": "gcc-x86",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/src/include",
+                "${workspaceFolder}/src/disasm/include",
+                "${workspaceFolder}/src/driver/include",
+                "${workspaceFolder}/src/init/include",
+                "${workspaceFolder}/src/kd/include",
+                "${workspaceFolder}/src/ke/include",
+                "${workspaceFolder}/src/libc/include",
+                "${workspaceFolder}/src/mm/include",
+                "${workspaceFolder}/src/video/include"
             ],
             "defines": [
                 "LIBK"
