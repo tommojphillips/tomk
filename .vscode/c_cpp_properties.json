@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "name": "tomk-x86-32bit",
+            "compilerPath": "i686-elf-gcc.exe",
+            "compilerArgs": [
+                "-std=gnu99",
+                "-ffreestanding",
+                "-march=i386"
+            ],
+            "cStandard": "gnu99",
+            "intelliSenseMode": "gcc-x86",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [
+                "LIBK"
+            ]
+        }
+    ],
+    "version": 4
+}
