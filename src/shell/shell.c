@@ -276,9 +276,9 @@ static void print_memory_stats(void) {
 	size_t pm_used = pmm_get_used();
 	size_t pm_free = pmm_get_free();
 	
-	size_t vm_usable = vmm_get_usable();
-	size_t vm_used = vmm_get_used();
-	size_t vm_free = vmm_get_free();
+	size_t vm_usable = kheap_get_usable();
+	size_t vm_used = kheap_get_used();
+	size_t vm_free = kheap_get_free();
 	
 	size_t ka_usable = PAGE_COUNT(ka_limit);
 	size_t ka_used = PAGE_COUNT(ka_size);
@@ -288,10 +288,10 @@ static void print_memory_stats(void) {
 	size_t st_used = PAGE_COUNT((size_t)&kstack_top - (size_t)getesp() + (PAGE_SIZE-1));
 	size_t st_free = st_usable - st_used;
 
-	kprint("\nMARK     |    STACK |   KALLOC |      PMM |      VMM\n");
-	kprint("usable   | %8u | %8u | %8u | %8u\n", st_usable, ka_usable, pm_usable, vm_usable);
-	kprint("used     | %8u | %8u | %8u | %8u\n", st_used, ka_used, pm_used, vm_used);
-	kprint("free     | %8u | %8u | %8u | %8u\n", st_free, ka_free, pm_free, vm_free);
+	kprint("\nMARK     |    KINIT |      PMM |   KSTACK |    KHEAP\n");
+	kprint("usable   | %8u | %8u | %8u | %8u\n", ka_usable, pm_usable, st_usable, vm_usable);
+	kprint("used     | %8u | %8u | %8u | %8u\n", ka_used, pm_used, st_used, vm_used);
+	kprint("free     | %8u | %8u | %8u | %8u\n", ka_free, pm_free, st_free, vm_free);
 }
 static void print_input(void) {
 	size_t x, y;

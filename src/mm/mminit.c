@@ -79,7 +79,7 @@ void mm_init(void) {
 	/* Init virtual memory allocator */
 	vmm_init(KVIRT, 0xFFFFF000);
 
-	/* Disable bump allocator */
+	/* Disable kernel_init allocator */
 	kinit_alloc_finalize();
 
 	/* Calculate kernel size + kinit_alloc allocations */
