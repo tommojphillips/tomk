@@ -34,21 +34,23 @@ static int kshell_command_input_print(void* userparam);
 static int kshell_command_reboot(void* userparam);
 static int kshell_command_alloctest(void* userparam);
 static int kshell_command_get_cpu_state(void* userparam);
-
-static kshell_command_t kshell_commands[] = {
-	{ "CLS", kshell_command_cls },
-	{ "ECHO", kshell_command_echo },
-	{ "MEM", kshell_command_mem },
-	{ "VER", kshell_command_ver },
-	{ "INP", kshell_command_input_print },
-	{ "REBOOT", kshell_command_reboot },
-	{ "ALLOCTEST", kshell_command_alloctest },
-	{ "GETSTATE", kshell_command_get_cpu_state },
-};
+static int kshell_command_help(void* userparam);
 
 static void print_memory_stats(void);
 static void print_input(void);
 static void alloctest(void);
+
+static kshell_command_t kshell_commands[] = {
+	{ "help", kshell_command_help },
+	{ "cls", kshell_command_cls },
+	{ "echo", kshell_command_echo },
+	{ "mem", kshell_command_mem },
+	{ "ver", kshell_command_ver },
+	{ "inp", kshell_command_input_print },
+	{ "reboot", kshell_command_reboot },
+	{ "alloctest", kshell_command_alloctest },
+	{ "getstate", kshell_command_get_cpu_state },
+};
 
 void kshell(void) {
 	char buffer[32+1] = { 0 };
@@ -251,6 +253,15 @@ static int kshell_command_get_cpu_state(void* userparam) {
 	kprint("fs =%8.4X gs =%8.4X\n", state.fs, state.gs);
 	kprint("cr0=%08X cr2=%08X cr3=%08X\n", state.cr0, state.cr2, state.cr3);
 	kprint("eip=%08X eflags=%08X\n", state.eip, state.eflags);
+
+	return 0; /* Success */
+}
+static int kshell_command_help(void* userparam) {
+	(void)userparam;
+	kprint("Commands:\n");
+	for (size_t i = 0; i < sizeof(kshell_commands) / sizeof(kshell_commands[0]); i++) {
+		kprint(" - %s\n", kshell_commands[i].name);
+	}
 
 	return 0; /* Success */
 }
