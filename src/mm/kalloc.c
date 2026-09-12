@@ -13,6 +13,7 @@
 
 #include <assert.h>
 #include <paging.h>
+#include <kspacedef.h>
 
 typedef struct kinit_alloc_t {
 	uintptr_t base;

@@ -30,7 +30,7 @@ extern pg_pt                                     ; paging.asm
 global mb_info_ptr
 global _start
 
-%include "src\include\common.inc"
+%include "src\include\kspacedef.inc"
 %include "src\mm\include\paging.inc"
 %include "src\init\include\mb.inc"
 

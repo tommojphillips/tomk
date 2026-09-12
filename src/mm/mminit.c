@@ -48,6 +48,7 @@
 #include <paging.h>
 #include <linkvars.h>
 #include <align.h>
+#include <kspacedef.h>
 
 #include <kdprint.h>
 #include <kernel.h>
@@ -77,7 +78,7 @@ void mm_init(void) {
 	pmm_init(&kmmap);
 
 	/* Init virtual memory allocator */
-	vmm_init(KVIRT, 0xFFFFF000);
+	vmm_init(&kvmm, KVIRT, KVIRT_END, kinit_alloc);
 
 	/* Disable kernel_init allocator */
 	kinit_alloc_finalize();
@@ -88,13 +89,13 @@ void mm_init(void) {
 	kinit_alloc_end = kinit_alloc_get_next();
 	kinit_alloc_size = ALIGN(uintptr_t, (kinit_alloc_end - kinit_alloc_base), PAGE_SIZE);
 	
-	pmm_mark_used(0x000A0000, 0x20000);                     /* Mark VGA buffer used */
-	pmm_mark_used(V2P(kbase), ksize);                       /* Mark kernel image used */
-	pmm_mark_used(kinit_alloc_base, kinit_alloc_size);      /* Mark kinit_alloc allocations used */
+	pmm_mark_used(0x000A0000, 0x20000);                       /* Mark VGA buffer used */
+	pmm_mark_used(V2P(kbase), ksize);                         /* Mark kernel image used */
+	pmm_mark_used(V2P(kinit_alloc_base), kinit_alloc_size);   /* Mark kinit_alloc allocations used */
     
-	vmm_mark_used(P2V(0x000A0000), 0x20000);                /* Mark VGA buffer at KVIRT used */
-	vmm_mark_used(kbase, ksize);                            /* Mark kernel image used */
-	vmm_mark_used(P2V(kinit_alloc_base), kinit_alloc_size); /* Mark kinit_alloc allocations used */
+	vmm_mark_used(&kvmm, P2V(0x000A0000), 0x20000);           /* Mark VGA buffer at KVIRT used */
+	vmm_mark_used(&kvmm, kbase, ksize);                       /* Mark kernel image used */
+	vmm_mark_used(&kvmm, kinit_alloc_base, kinit_alloc_size); /* Mark kinit_alloc allocations used */
 
 	/* Init kernel heap allocator */
 	kheap_init();

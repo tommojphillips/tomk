@@ -18,7 +18,7 @@ global pg_chgpriv
 global pg_pd
 global pg_pt
 
-%include "src\include\common.inc"
+%include "src\include\kspacedef.inc"
 %include "src\mm\include\paging.inc"
 
 ; Page directory / Page tables

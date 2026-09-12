@@ -17,8 +17,6 @@ LD      := i686-elf-ld
 OBJCOPY := objcopy
 OBJDUMP := i686-elf-objdump
 
-LINKER := src/linker.ld
-
 # ------------------------------------------------------------
 # Flags
 # ------------------------------------------------------------
@@ -67,8 +65,9 @@ INCLUDES := \
 	-I$(SRC_DIR)/disasm/include \
 	-I$(SRC_DIR)/driver/include \
 	-I$(SRC_DIR)/video/include \
-	-I$(SRC_DIR)/init/include \
 	-I$(SRC_DIR)/ke/include \
+	-I$(SRC_DIR)/init/include \
+	-I$(SRC_DIR)/scheduler/include \
 	-I$(SRC_DIR)/include
 
 # ------------------------------------------------------------
@@ -84,7 +83,16 @@ MODULES := \
 	video \
 	shell \
 	ke \
-	init
+	init \
+	scheduler
+
+# ------------------------------------------------------------
+# Linker
+# ------------------------------------------------------------
+
+IN_LINKER := src/linker.ld
+OUT_LINKER := $(OBJ_DIR)/linker.ld
+OUT_LINKER_DEP := $(OUT_LINKER:.ld=.d)
 
 # ------------------------------------------------------------
 # Recursive source finder
@@ -175,11 +183,20 @@ $(foreach module,$(MODULES),$(eval $(call MODULE_library_rule,$(module))))
 # Link
 # ------------------------------------------------------------
 
-$(OUT_DIR)/$(OUT_FN).elf: $(LIBS) $(LINKER) $(OUT_DIR)
+$(OUT_LINKER): $(IN_LINKER) $(OBJ_DIR)
+	@echo Creating Linker...
+	@$(CC) -E -P -x c $(IN_LINKER) \
+		$(INCLUDES) \
+		-o $(OUT_LINKER) \
+		-MMD -MP \
+		-MF $(OUT_LINKER_DEP) \
+		-MT $(OUT_LINKER)
+
+$(OUT_DIR)/$(OUT_FN).elf: $(LIBS) $(OUT_LINKER) $(OUT_DIR)
 	@echo Linking...
 	@$(LD) $(LDFLAGS) \
 		-Map=$(OUT_DIR)/$(OUT_FN).map \
-		-T $(LINKER) \
+		-T $(OUT_LINKER) \
 		-o $@ \
 		--start-group \
 		$(LIBS) \
@@ -233,3 +250,4 @@ clean:
 # ------------------------------------------------------------
 
 -include $(DEPS)
+-include $(OUT_LINKER_DEP)

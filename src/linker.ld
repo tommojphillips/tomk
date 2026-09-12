@@ -1,12 +1,16 @@
-OUTPUT_FORMAT(elf32-i386)
-ENTRY(_start) /* entry.asm */
+/* linker.ld
+ * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ */
+
+#include <kspacedef.h>
+
+ENTRY(_start)
 
 SECTIONS {
-    /* Load kernel at physical address 0x00100000 (1MB) */
-    . = 0x00100000;
+    . = KPHYS;
     sec_kstart = .;
     
-    /* Loader is executed at 0x00100000 */
+    /* TOMK Loader is executed at KPHYS */
     .boot : {
      sec_boot_start = .;
      *(.mb)
@@ -14,28 +18,29 @@ SECTIONS {
      sec_boot_end = .;
     }
 
-    /* Kernel is executed at 0xC0100000 */
-    . += 0xC0000000;
+    /* Kernel is executed at KVIRT */
+    . += KVIRT;
 
-    .text ALIGN (4K) : AT (ADDR (.text) - 0xC0000000) {
+    /* TOMK Kernel is executed at KVIRT */
+    .text ALIGN(4K) : AT(V2P(ADDR(.text))) {
      sec_text_start = .;
      *(.text)
      sec_text_end = .;
     }
 
-    .rodata ALIGN (4K) : AT (ADDR (.rodata) - 0xC0000000) {
+    .rodata ALIGN(4K) : AT(V2P(ADDR(.rodata))) {
      sec_rodata_start = .;
      *(.rodata)
      sec_rodata_end = .;
     }
 
-    .data ALIGN (4K) : AT (ADDR (.data) - 0xC0000000) {
+    .data ALIGN(4K) : AT(V2P(ADDR(.data))) {
      sec_data_start = .;
      *(.data)
      sec_data_end = .;
     }
 
-    .bss ALIGN (4K) : AT (ADDR (.bss) - 0xC0000000) {
+    .bss ALIGN(4K) : AT(V2P(ADDR(.bss))) {
      sec_bss_start = .;
      *(COMMON)
      *(.bss)

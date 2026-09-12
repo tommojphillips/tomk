@@ -28,7 +28,7 @@ global khang
 global kstack_base
 global kstack_top
 
-%include "src\include\common.inc"
+%include "src\include\kspacedef.inc"
 %include "src\mm\include\paging.inc"
 
 section .bss
