@@ -6,12 +6,13 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+
+#include <kdprint.h>
+#include <kpanic.h>
+
 #include <i86.h>
 #include <paging.h>
 #include <i80386_mnem.h>
-
-#include <kdprint.h>
-#include <kernel.h>
 
 /* Unmapped write access */
 #define UNMAPPED_WRITE_ACCESS           0xA0000001
