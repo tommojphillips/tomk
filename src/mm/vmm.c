@@ -21,99 +21,157 @@
 /* CEIL DIV */
 #define CEIL_DIV(x,y) (((x) + (y) - 1) / (y))
 
-typedef struct vmm_t {
-    uint32_t* bitmap;
-    size_t bitmap_size;
+static void vmm_set(vmm_t* vmm, uintptr_t virt);
+static void vmm_clear(vmm_t* vmm, uintptr_t virt);
+static int vmm_test(vmm_t* vmm, uintptr_t virt);
+static void rollback_allocations(vmm_t* vmm, uintptr_t virt_addr, size_t count);
+static uintptr_t vmm_find_contiguous_pages(vmm_t* vmm, size_t count);
 
-    uintptr_t base;
-    uintptr_t end;
-
-    size_t total_pages;
-    size_t usable_pages;
-    size_t free_pages;
-    size_t used_pages;
-} vmm_t;
-
-/* Virtual Memory Manager */
-static vmm_t vmm;
-
-static void vmm_set(uintptr_t virt);
-static void vmm_clear(uintptr_t virt);
-static int vmm_test(uintptr_t virt);
-static void rollback_allocations(uintptr_t virt_addr, size_t count);
-static uintptr_t vmm_find_contiguous_pages(size_t count);
-
-void vmm_init(uintptr_t base, uintptr_t end) {
+void vmm_init(vmm_t* vmm, uintptr_t base, uintptr_t end, vmm_alloc_fn_t alloc) {
 	assert((base & (PAGE_SIZE-1)) == 0);
 	assert((end & (PAGE_SIZE-1)) == 0);
     assert(base < end);
+    assert(alloc);
+    assert(vmm);
     
-    vmm.base = base;
-    vmm.end = end;
-    vmm.total_pages = PAGE_COUNT(end - base);
-    vmm.bitmap_size = CEIL_DIV(vmm.total_pages, 32) * sizeof(uint32_t);
-    vmm.free_pages = vmm.total_pages;
-    vmm.usable_pages = vmm.total_pages;
-    vmm.used_pages = 0;
+    vmm->base = base;
+    vmm->end = end;
+    vmm->total_pages = TO_PAGE(end - base);
+    vmm->bitmap_size = CEIL_DIV(vmm->total_pages, 32) * sizeof(uint32_t);
+    vmm->free_pages = vmm->total_pages;
+    vmm->usable_pages = vmm->total_pages;
+    vmm->used_pages = 0;
     
     /* Allocate memory for the bitmap */
-    vmm.bitmap = kinit_alloc(vmm.bitmap_size);
-    assert(vmm.bitmap != NULL);
+    vmm->bitmap = alloc(vmm->bitmap_size);
+    assert(vmm->bitmap != NULL);
 
     /* Mark all virtual addresses free */
-    memset(vmm.bitmap, 0, vmm.bitmap_size);
+    memset(vmm->bitmap, 0, vmm->bitmap_size);
 
     if (base == 0) {
         /* Mark zero page used */
-        vmm_mark_used(0x00000000, 0x1000);
+        vmm_mark_used(vmm, 0x00000000, 0x1000);
     }
 }
+void vmm_destroy(vmm_t* vmm, vmm_free_fn_t free) {
+    assert(vmm != NULL);
+    assert(free != NULL);
+    
+    /* Unmap and free each physical page independently */
+    size_t len = vmm->bitmap_size / sizeof(uint32_t);    
+    for (size_t i = 0; i < len; i++) {
+        uint32_t bits = vmm->bitmap[i];
 
-void* vmm_alloc(size_t count) {
-    /* Contiguous virtual addresses; Arbitrary physical addresses */
+        for (size_t bit = 0; bit < 32U; bit++) {
+            size_t page = (i << 5) + bit;
+
+            if (page >= vmm->total_pages) {
+                break;
+            }
+
+            if (!(bits & (1U << bit))) {
+                continue;
+            }
+
+            uintptr_t virt_addr = vmm->base + TO_ADDR(page);
+            uintptr_t phys_addr = pg_virt2phys(virt_addr);
+
+            if (!phys_addr) {
+                continue;
+            }
+
+            pg_unmap(virt_addr, 1);
+            pg_invalidate(virt_addr, 1);
+            pmm_free(phys_addr, 1);
+            
+            vmm->bitmap[i] &= ~(1U << bit);
+        }
+    }
+
+    free(vmm->bitmap);
+    vmm->bitmap = NULL;
+    vmm->bitmap_size = 0;
+}
+
+void* vmm_reserve(vmm_t* vmm, size_t count) {
+    /* Non-backed contiguous virtual addresses */
+    assert(vmm != NULL);
 
     if (count == 0) {
         return NULL;
     }
 
-    if (count > vmm.free_pages) {
+    if (count > vmm->free_pages) {
         return NULL;
     }
 
-    /* Find a contiguous range of virtual pages. */
-    uintptr_t start = vmm_find_contiguous_pages(count);
-    if (start == 0) {        
-        kprint("[VMM] fragmentation error: %u\n", count);
+    /* Find a contiguous range of virtual pages */
+    uintptr_t start = vmm_find_contiguous_pages(vmm, count);
+    if (start == 0) {
+        kprint("[VMM] Memory fragmentation error: %u (avail=%u largest_run=%u)\n", count, vmm->free_pages, vmm->largest_run);
         return NULL;
     }
 
-    /* Allocate and map each physical page independently.
-     Physical pages are not required to be contiguous, but they can be. */
+    /* Reserve virtual addresses */
     for (size_t i = 0; i < count; i++) {
-        uintptr_t phys_addr = pmm_alloc(1);
-        uintptr_t virt_addr = start + i * PAGE_SIZE;
-
-        if (!phys_addr) {
-            rollback_allocations(start, i);
-            return NULL;
-        }
-
-        vmm_set(virt_addr);
-        assert(vmm_test(virt_addr));
-        pg_map(virt_addr, phys_addr, PTE_RW, 1);
-
+        uintptr_t virt_addr = start + TO_ADDR(i);
+        vmm_set(vmm, virt_addr);
     }
-
-    kdprint("[VMM] alloc: virt_addr=%08X phys_addr=%08X count=%d\n", start, pg_virt2phys(start), count);
 
     /* Bookkeeping */
-    vmm.free_pages -= count;
-    vmm.used_pages += count;
+    vmm->free_pages -= count;
+    vmm->used_pages += count;
     
     return (void*)start;
 }
-void vmm_free(void* virt, size_t count) {
+void* vmm_alloc(vmm_t* vmm, size_t count) {
     /* Contiguous virtual addresses; Arbitrary physical addresses */
+    assert(vmm != NULL);
+
+    void* start = vmm_reserve(vmm, count);
+    if (start == NULL) {
+        return NULL;
+    }
+
+    /* Allocate and map each physical page independently */
+    for (size_t i = 0; i < count; i++) {
+        /* Allocate arbitrary physical page */
+        uintptr_t phys = pmm_alloc(1);
+        if (!phys) {
+            rollback_allocations(vmm, (uintptr_t)start, i);
+            return NULL;
+        }
+        
+        uintptr_t virt = (uintptr_t)start + TO_ADDR(i);
+        pg_map(virt, phys, PTE_RW, 1);
+    }
+    return start;
+}
+void* vmm_alloc_contiguous(vmm_t* vmm, size_t count) {
+    /* Contiguous virtual addresses; Contiguous physical addresses */
+    assert(vmm != NULL);
+
+    void* virt = vmm_reserve(vmm, count);
+    if (virt == NULL) {
+        return NULL;
+    }
+
+    /* Allocate contiguous range of physical pages */
+    uintptr_t phys = pmm_alloc(count);
+    if (!phys) {
+        return NULL;
+    }
+    
+    /* Map all the addresses in one pass */
+    pg_map((uintptr_t)virt, phys, PTE_RW, count);
+
+    return virt;
+}
+
+void vmm_free(vmm_t* vmm, void* virt, size_t count) {
+    /* Contiguous virtual addresses; Arbitrary physical addresses */
+    assert(vmm != NULL);
 
     if (virt == NULL) {
         return;
@@ -123,264 +181,167 @@ void vmm_free(void* virt, size_t count) {
         return;
     }
 
-    if ((uintptr_t)virt < vmm.base || (uintptr_t)virt >= vmm.end) {
-        kprint("[VMM] error address out of bounds: %8.8X\n", (uintptr_t)virt);
+    if ((uintptr_t)virt < vmm->base || (uintptr_t)virt >= vmm->end) {
+        kprint("[VMM] Address out of bounds error: %8.8X\n", (uintptr_t)virt);
+        return;
+    }
+
+    uintptr_t page = TO_ADDR((uintptr_t)virt - vmm->base);
+
+    if (count > vmm->total_pages - page) {
+        kprint("[VMM] Out of bounds error: %8.8X\n", (uintptr_t)virt);
         return;
     }
 
     if ((uintptr_t)virt & (PAGE_SIZE - 1)) {
-        kprint("[VMM] error mis-aligned page: %8.8X\n", (uintptr_t)virt);
+        kprint("[VMM] Mis-aligned page error: %8.8X\n", (uintptr_t)virt);
         return;
-    }
-
-    uintptr_t page = PAGE_COUNT((uintptr_t)virt - vmm.base);
-
-    if (count > vmm.total_pages - page) {
-        kprint("[VMM] error range out of bounds: %8.8X\n", (uintptr_t)virt);
-        return;
-    }
-
-    /* Validate the entire range */
-    for (size_t i = 0; i < count; i++) {
-        uintptr_t virt_addr = (uintptr_t)virt + i * PAGE_SIZE;
-        if (!vmm_test(virt_addr)) {
-            kprint("[VMM] error page not allocated: %8.8X\n", virt_addr);
-            return;
-        }
-
-        uintptr_t phys_addr = pg_virt2phys(virt_addr);
-        if (!phys_addr) {
-            kprint("[VMM] error page not mapped: %8.8X\n", virt_addr);
-            return;
-        }
     }
 
     /* Unmap and free each physical page independently */
     for (size_t i = 0; i < count; i++) {
-        uintptr_t virt_addr = (uintptr_t)virt + i * PAGE_SIZE;
+        uintptr_t virt_addr = (uintptr_t)virt + TO_ADDR(i);
+        vmm_clear(vmm, virt_addr);
+        
         uintptr_t phys_addr = pg_virt2phys(virt_addr);
-        assert(phys_addr != 0);
-
-        vmm_clear(virt_addr);
-        pmm_free(phys_addr, 1);
-    }
-
-    pg_unmap((uintptr_t)virt, count);
-    pg_invalidate((uintptr_t)virt, count);
-
-    /* Bookkeeping */
-    vmm.free_pages += count;
-    vmm.used_pages -= count;
-}
-
-void* vmm_alloc_contiguous(size_t count) {
-    /* Contiguous virtual addresses; Contiguous physical addresses */
-   
-    if (count == 0) {
-        return NULL;
-    }
-
-    if (count > vmm.free_pages) {
-        kprint("[VMM] error out of pages\n");
-        return NULL;
-    }
-    
-    /* Find a contiguous range of virtual pages */
-    uintptr_t start = vmm_find_contiguous_pages(count);
-    if (start == 0) {        
-        kprint("[VMM] fragmentation error: %u\n", count);
-        return NULL;
-    }
-    
-    /* Allocate contiguous range of physical pages */
-    uintptr_t phys_addr = pmm_alloc(count);
-    if (!phys_addr) {
-        return NULL;
-    }
-
-    /* Mark the virtual range used and map the physical range. */
-    for (size_t i = 0; i < count; i++) {
-        uintptr_t virt_addr = start + i * PAGE_SIZE;
-        vmm_set(virt_addr);
-        assert(vmm_test(virt_addr));
-    }
-
-    /* Since both virtual and physical address spaces are contiguous, map all the addresses in one pass */
-    pg_map(start, phys_addr, PTE_RW, count);
-    
-    /* Bookkeeping */
-    vmm.free_pages -= count;
-    vmm.used_pages += count;
-
-    return (void*)start;
-}
-void vmm_free_contiguous(void* virt, size_t count) {
-    /* Contiguous virtual addresses -> Contiguous physical addresses */
-    if (virt == NULL || count == 0) {
-        return;
-    }
-
-    /* Must be within limits */
-    if ((uintptr_t)virt < vmm.base || (uintptr_t)virt >= vmm.end) {
-        kprint("[VMM] error address out of bounds: %8.8X\n", (uintptr_t)virt);
-        return;
-    }
-
-    /* Must be page-aligned */
-    if ((uintptr_t)virt & (PAGE_SIZE-1)) {
-        kprint("[VMM] error mis-aligned page: %8.8X\n", (uintptr_t)virt);
-        return;
-    }
-
-    uintptr_t page = PAGE_COUNT((uintptr_t)virt - vmm.base);
-
-    /* Make sure the entire virtual range is allocated */
-    if (count > vmm.total_pages - page) {
-        kprint("[VMM] error range out of bounds: %8.8X\n", (uintptr_t)virt);
-        return;
-    }
-
-    for (size_t i = 0; i < count; i++) {
-        uintptr_t virt_addr = (uintptr_t)virt + i * PAGE_SIZE;
-        if (!vmm_test(virt_addr)) {
-            kprint("[VMM] error unallocated page: %8.8X\n", virt_addr);
-            return;
+        if (phys_addr != 0) {
+            pmm_free(phys_addr, 1);
+            pg_unmap(virt_addr, 1);
+            pg_invalidate(virt_addr, 1);
         }
     }
 
-    /* Get the physical base before unmapping */
-    uintptr_t phys_addr = pg_virt2phys((uintptr_t)virt);
-    assert(phys_addr != 0);
-
-    /* Unmap the entire virtual range */
-    for (size_t i = 0; i < count; i++) {
-        uintptr_t virt_addr = (uintptr_t)virt + i * PAGE_SIZE;
-        vmm_clear(virt_addr);
-    }
-
-    pg_unmap((uintptr_t)virt, count);
-    pg_invalidate((uintptr_t)virt, count);
-
-    /* Since vmm_alloc_contiguous() obtains physically contiguous
-     pages, free the physical range as one contiguous allocation */
-    pmm_free(phys_addr, count);
-
     /* Bookkeeping */
-    vmm.free_pages += count;
-    vmm.used_pages -= count;
+    vmm->free_pages += count;
+    vmm->used_pages -= count;
 }
 
-void vmm_mark_free(uintptr_t virt, size_t size) {
-    assert(virt >= vmm.base);
-    assert(size <= vmm.end - virt);
+int vmm_mark_free(vmm_t* vmm, uintptr_t virt, size_t size) {
+    assert(virt >= vmm->base);
+    assert(size <= vmm->end - virt);
 
-    /* Only 4096-byte regions can be marked using the bitmap. Compute the usable size.
-     Since pages are being marked as free, round end down to the nearest page. */
+    int r = 1;
     uintptr_t start = ALIGN(uintptr_t, virt, PAGE_SIZE);
     uintptr_t end = (virt + size) & ~(uintptr_t)(PAGE_SIZE - 1);
 
     for (uintptr_t virt_addr = start; virt_addr < end; virt_addr += PAGE_SIZE) {
-        if (vmm_test(virt_addr)) {
-            vmm_clear(virt_addr);
-            vmm.free_pages++;
-            vmm.used_pages--;
+        if (!vmm_test(vmm, virt_addr)) {
+            r = 0;
+            continue;
         }
+
+        vmm_clear(vmm, virt_addr);
+        vmm->free_pages++;
+        vmm->used_pages--;
     }
 
-    kdprint("[VMM] mark free: %08X-%08X\n", start, end);
+    kdprint("[VMM] Mark free: %08X-%08X r=%d\n", start, end, r);
+    return r;
 }
-void vmm_mark_used(uintptr_t virt, size_t size) {
-    assert(virt >= vmm.base);
-    assert(size <= vmm.end - virt);
+int vmm_mark_used(vmm_t* vmm, uintptr_t virt, size_t size) {
+    assert(virt >= vmm->base);
+    assert(size <= vmm->end - virt);
 
-    /* Only 4096-byte regions can be marked using the bitmap. Compute the usable size.
-     Since pages are being marked as used, round end up to the nearest page. */
+    int r = 1;
     uintptr_t start = ALIGN(uintptr_t, virt, PAGE_SIZE);
     uintptr_t end = ALIGN(uintptr_t, virt + size, PAGE_SIZE);
 
     for (uintptr_t virt_addr = start; virt_addr < end; virt_addr += PAGE_SIZE) {        
-        if (!vmm_test(virt_addr)) {
-            vmm_set(virt_addr);
-            vmm.free_pages--;
-            vmm.used_pages++;
+        if (vmm_test(vmm, virt_addr)) {
+            r = 0;
+            continue;
         }
+
+        vmm_set(vmm, virt_addr);
+        vmm->free_pages--;
+        vmm->used_pages++;
     }
 
-    kdprint("[VMM] mark used: %08X-%08X\n", start, end);
+    kdprint("[VMM] Mark used: %08X-%08X r=%d\n", start, end, r);
+    return r;
 }
 
-size_t vmm_get_free(void) {
-    return vmm.free_pages;
+size_t vmm_get_free(vmm_t* vmm) {
+    return vmm->free_pages;
 }
-size_t vmm_get_total(void) {
-    return vmm.total_pages;
+size_t vmm_get_total(vmm_t* vmm) {
+    return vmm->total_pages;
 }
-size_t vmm_get_used(void) {
-    return vmm.used_pages;
+size_t vmm_get_used(vmm_t* vmm) {
+    return vmm->used_pages;
 }
-size_t vmm_get_usable(void) {
-    return vmm.usable_pages;
+size_t vmm_get_usable(vmm_t* vmm) {
+    return vmm->usable_pages;
+}
+size_t vmm_get_largest_run(vmm_t* vmm) {
+    return vmm->largest_run;
 }
 
-static void vmm_set(uintptr_t virt) {
-    uintptr_t page = PAGE_COUNT(virt - vmm.base);
+static void vmm_set(vmm_t* vmm, uintptr_t virt) {
+    uintptr_t page = TO_PAGE(virt - vmm->base);
     size_t i = page >> 5;
-    if (i >= vmm.bitmap_size / sizeof(uint32_t)) {
+    if (i >= vmm->bitmap_size / sizeof(uint32_t)) {
         return;
     }
-    vmm.bitmap[i] |= 1U << (page & 31);
+    vmm->bitmap[i] |= 1U << (page & 31);
 }
-static void vmm_clear(uintptr_t virt) {
-    uintptr_t page = PAGE_COUNT(virt - vmm.base);
+static void vmm_clear(vmm_t* vmm, uintptr_t virt) {
+    uintptr_t page = TO_PAGE(virt - vmm->base);
     size_t i = page >> 5;
-    if (i >= vmm.bitmap_size / sizeof(uint32_t)) {
+    if (i >= vmm->bitmap_size / sizeof(uint32_t)) {
         return;
     }
-    vmm.bitmap[i] &= ~(1U << (page & 31));
+    vmm->bitmap[i] &= ~(1U << (page & 31));
 }
-static int vmm_test(uintptr_t virt) {
-    uintptr_t page = PAGE_COUNT(virt - vmm.base);
+static int vmm_test(vmm_t* vmm, uintptr_t virt) {
+    uintptr_t page = TO_PAGE(virt - vmm->base);
     size_t i = page >> 5;
-    if (i >= vmm.bitmap_size / sizeof(uint32_t)) {
+    if (i >= vmm->bitmap_size / sizeof(uint32_t)) {
         return 0;
     }
-    return vmm.bitmap[i] & (1U << (page & 31));
+    return vmm->bitmap[i] & (1U << (page & 31));
 }
-static void rollback_allocations(uintptr_t virt, size_t count) {
+static void rollback_allocations(vmm_t* vmm, uintptr_t virt, size_t count) {
     for (size_t i = 0; i < count; i++) {
-        uintptr_t virt_addr =  virt + i * PAGE_SIZE;
+        uintptr_t virt_addr =  virt + TO_ADDR(i);
         uintptr_t phys_addr = pg_virt2phys(virt_addr);
 
         pmm_free(phys_addr, 1);
-        vmm_clear(virt_addr);
+        vmm_clear(vmm, virt_addr);
         pg_unmap(virt_addr, 1);
         pg_invalidate(virt_addr, 1);
     }
 }
-static uintptr_t vmm_find_contiguous_pages(size_t count) {
+static uintptr_t vmm_find_contiguous_pages(vmm_t* vmm, size_t count) {
     /* Find a contiguous range of virtual pages */
-    assert(vmm.bitmap != NULL);
-    assert(vmm.bitmap_size != 0);
+    assert(vmm != NULL);
+    assert(vmm->bitmap != NULL);
+    assert(vmm->bitmap_size != 0);
 
     uintptr_t start = 0;
     uint32_t run = 0;
-    size_t len = vmm.bitmap_size / sizeof(uint32_t);
+    size_t len = vmm->bitmap_size / sizeof(uint32_t);
     
+    vmm->largest_run = 0;
+
     if (count == 0) {
         return 0;
     }
 
     for (size_t i = 0; i < len; i++) {
-        uint32_t bits = vmm.bitmap[i];
+        uint32_t bits = vmm->bitmap[i];
 
         for (size_t bit = 0; bit < 32U; bit++) {
             size_t page = (i << 5) + bit;
 
-            if (page >= vmm.total_pages) {
+            if (page >= vmm->total_pages) {
                 break;
             }
 
             if (bits & (1U << bit)) {
+                if (vmm->largest_run < run) {
+                    vmm->largest_run = run;
+                }
                 run = 0;
                 continue;
             }
@@ -392,7 +353,8 @@ static uintptr_t vmm_find_contiguous_pages(size_t count) {
             run++;
 
             if (run == count) {
-                return vmm.base + start * PAGE_SIZE;
+                vmm->largest_run = run;
+                return vmm->base + TO_ADDR(start);
             }
         }
     }

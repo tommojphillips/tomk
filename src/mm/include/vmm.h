@@ -10,53 +10,75 @@
 #include <stdint.h>
 #include <stddef.h>
 
-/* Initialize pmm 
+typedef void* (*vmm_alloc_fn_t)(size_t);
+typedef void (*vmm_free_fn_t)(void*);
+
+typedef struct vmm_t {
+    uint32_t* bitmap;
+    size_t bitmap_size;
+    size_t total_pages;
+    size_t usable_pages;
+    size_t free_pages;
+    size_t used_pages;
+    size_t largest_run;
+    uintptr_t base;
+    uintptr_t end;
+} vmm_t;
+
+/* Initialize vmm 
  base: virtual address base  
  end: virtual address end */
-void vmm_init(uintptr_t base, uintptr_t end);
+void vmm_init(vmm_t* vmm, uintptr_t base, uintptr_t end, vmm_alloc_fn_t alloc);
 
-/* Allocate contiguous virtual pages backed by arbitrary physical pages.
+/* Destroy vmm */
+void vmm_destroy(vmm_t* vmm, vmm_free_fn_t free);
+
+/* Allocate virtual pages backed by arbitrary physical pages
  count: requested page count 
- Returns: virtual page address if successfull, otherwise 0. */
-void* vmm_alloc(size_t count);
+ Returns: pointer if successfull, otherwise NULL */
+void* vmm_alloc(vmm_t* vmm, size_t count);
 
-/* Free contiguous virtual pages backed by arbitrary physical pages.
+/* Allocate virtual pages backed by contiguous physical pages
+ count: requested page count 
+ Returns: pointer if successfull, otherwise NULL */
+void* vmm_alloc_contiguous(vmm_t* vmm, size_t count);
+
+/* Reserve non-backed, virtual pages
+ count: requested page count 
+ Returns: pointer if successfull, otherwise NULL */
+void* vmm_reserve(vmm_t* vmm, size_t count);
+
+/* Free virtual pages backed or non-backed physical pages
  virt: Virtual page address
  count: requested page count */
-void vmm_free(void* virt, size_t count);
-
-/* Allocate contiguous virtual pages backed by contiguous physical pages.
- count: requested page count 
- Returns: virtual page address if successfull, otherwise 0. */
-void* vmm_alloc_contiguous(size_t count);
-
-/* Free contiguous virtual pages backed by contiguous physical pages.
- virt: Virtual page address 
- count: requested page count */
-void vmm_free_contiguous(void* virt, size_t count);
+void vmm_free(vmm_t* vmm, void* virt, size_t count);
 
 /* Get free virtual pages
  Returns: free virtual pages */
-size_t vmm_get_free(void);
+size_t vmm_get_free(vmm_t* vmm);
 
 /* Get used virtual pages
  Returns: used virtual pages */
-size_t vmm_get_used(void);
+size_t vmm_get_used(vmm_t* vmm);
 
 /* Get total virtual pages
  Returns: total virtual pages, including reserved virtual pages */
-size_t vmm_get_total(void);
+size_t vmm_get_total(vmm_t* vmm);
 
 /* Get usable virtual pages
  Returns: usable virtual pages, excluding reserved virtual pages */
-size_t vmm_get_usable(void);
+size_t vmm_get_usable(vmm_t* vmm);
+
+/* Get previous largest run from vmm_alloc(), vmm_reserve(), vmm_alloc_contiguous()
+ Returns: the largest run of virtual pages found  */
+size_t vmm_get_largest_run(vmm_t* vmm);
 
 /* Mark virtual page(s) free
  virt: Virtual page address */
-void vmm_mark_free(uintptr_t virt, size_t count);
+int vmm_mark_free(vmm_t* vmm, uintptr_t virt, size_t count);
 
 /* Mark virtual page(s) used
  virt: Virtual page address */
-void vmm_mark_used(uintptr_t virt, size_t count);
+int vmm_mark_used(vmm_t* vmm, uintptr_t virt, size_t count);
 
 #endif

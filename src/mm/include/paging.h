@@ -11,18 +11,22 @@
 #include <stddef.h>
 
 #define PAGE_SIZE     4096
-#define PD_ENTRY_SIZE 4
-#define PD_ENTRIES    1024
-#define PD_SIZE       (PD_ENTRY_SIZE * PD_ENTRIES)
-#define PT_ENTRIES    1024
-#define PT_SIZE       (PAGE_SIZE * PT_ENTRIES)
-#define PAGE_COUNT(x) ((x) >> 12)
+#define TO_PAGE(_addr) ((_addr) >> 12)
+#define TO_ADDR(_page) ((_page) << 12)
 
-#define PTE_NP 0x00 /* Not Present */
-#define PTE_P  0x01 /* Present */
-#define PTE_RO 0x00 /* Read-Only */
-#define PTE_RW 0x02 /* Read-Write*/
-#define PTE_US 0x04 /* User/Super */
+/* Convert virtual address to PD index */
+#define PD_IDX(_virt_addr) ((_virt_addr) >> 22)
+
+/* Convert virtual address to PT index */
+#define PT_IDX(_virt_addr) (((_virt_addr) >> 12) & 0x3FF)
+
+#define PTE_NP          0x00 /* Not-Present */
+#define PTE_P           0x01 /* Present */
+
+#define PTE_RO          0x00 /* Read-Only */
+#define PTE_RW          0x02 /* Read-Write */
+
+#define PTE_US          0x04 /* User/Super */
 
 /* Map contiguous pages
 virtual_address:  virtual start address
