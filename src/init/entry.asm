@@ -37,7 +37,7 @@ global _start
 section .bss
     mb_info_ptr dd ?    
 
-section .boot
+section .boot progbits alloc exec nowrite
 
 _start:
     cmp eax, 0x2BADB002                          ; multiboot v1 ?
@@ -46,13 +46,19 @@ _start:
 .mb:
     add ebx, KVIRT                               ; convert pointer to a kernel virtual address
     mov [V2P(mb_info_ptr)], ebx                  ; save pointer
-    jmp .enter_higher_half
+    jmp .bootstrap
 
 .unk:
     mov dword [V2P(mb_info_ptr)], 0              ; NULL pointer
 
-.enter_higher_half:
+.bootstrap:
 
+.setup_recursive_mapping:
+    mov eax, V2P(pg_pd)
+    or eax, (RW | P)
+    mov [V2P(pg_pd)+1023*4], eax
+
+.map_1mb:
     ; map first 1MB to KVIRT
     push 256-1                                   ; page count
     push RW                                      ; flags
@@ -61,10 +67,11 @@ _start:
     call map                                     ; map first 1MB to KVIRT
     add esp, 16
 
+.map_text:
     ; compute .text section size
     mov edx, sec_text_end
-    add edx, 0xFFF                               ; page align end address
     sub edx, sec_text_start                      ; compute size
+    add edx, PAGE_SIZE-1                         ; page align end address
     shr edx, 12                                  ; get page count
 
     ; map .text section (KVIRT+1MB) (Read-Only)
@@ -74,11 +81,12 @@ _start:
     push sec_text_start                          ; virtual address
     call map                                     ; map .text section (KVIRT)
     add esp, 16
-    
+
+.map_rodata:
     ; compute .rodata section size
     mov edx, sec_rodata_end
-    add edx, 0xFFF                               ; page align end address
     sub edx, sec_rodata_start                    ; compute size
+    add edx, PAGE_SIZE-1                         ; page align end address
     shr edx, 12                                  ; get page count  
 
     ; map .rodata section (KVIRT+1MB) (Read-Only)
@@ -89,10 +97,11 @@ _start:
     call map                                     ; map .rodata section (KVIRT)
     add esp, 16
 
+.map_data:
     ; compute .data section size
     mov edx, sec_data_end
-    add edx, 0xFFF                               ; page align end address
     sub edx, sec_data_start                      ; compute size
+    add edx, PAGE_SIZE-1                         ; page align end address
     shr edx, 12                                  ; get page count  
 
     ; map .data section (KVIRT+1MB) (Read-Write)
@@ -103,10 +112,11 @@ _start:
     call map                                     ; map .data section (KVIRT)
     add esp, 16
 
+.map_bss:
     ; compute .bss section size
     mov edx, sec_bss_end
-    add edx, 0xFFF                               ; page align end address
     sub edx, sec_bss_start                       ; compute size
+    add edx, PAGE_SIZE-1                         ; page align end address
     shr edx, 12                                  ; get page count  
 
     ; map .bss section (KVIRT+1MB) (Read-Write)
@@ -116,11 +126,12 @@ _start:
     push sec_bss_start                           ; virtual address
     call map                                     ; map .bss section (KVIRT)
     add esp, 16
-        
+
+.map_boot:
     ; compute .boot section size
     mov edx, sec_boot_end
-    add edx, 0xFFF                               ; page align end address
     sub edx, sec_boot_start                      ; compute size
+    add edx, PAGE_SIZE-1                         ; page align end address
     shr edx, 12                                  ; get page count
 
     ; map .boot section (1MB identity) (Read-Only)
@@ -130,6 +141,8 @@ _start:
     push sec_boot_start                          ; virtual address
     call map                                     ; map .boot section (identity)
     add esp, 16
+
+.enter_higher_half:
 
     ; load CR3
     mov eax, V2P(pg_pd)                          ; load physical address of page directory in CR3
