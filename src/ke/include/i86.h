@@ -95,10 +95,6 @@ extern void int86(uint8_t vector, const cpu_regs_t* input_regs, cpu_state_t* out
  state: the cpu state */
 extern void getstate(const cpu_state_t* state);
 
-/* Set CPU State
- state: the cpu state */
-extern void setstate(const cpu_state_t* state);
-
 /* Get ESP
  Returns ESP */
 extern uint32_t getesp(void);
@@ -199,16 +195,21 @@ extern void haltwait(void);
 
 /* Write INT Gate to IDT
  vector:   IDT index
- ar:       int ar byte 
  selector: int CS
  offset:   int EIP */
-extern void write_int_gate(uint8_t vector, uint8_t ar, uint16_t selector, uint32_t offset);
+extern void write_int_gate(uint8_t vector, uint16_t selector, uint32_t offset);
+
+/* Write TASK Gate to IDT
+ vector:   IDT index
+ selector: int CS
+ offset:   int EIP */
+extern void write_task_gate(uint8_t vector, uint16_t selector);
 
 /* Write TSS Gate to GDT
  selector: GDT index
- ar:       tss ar byte
  limit:    segment limit
+ ar:       tss ar word
  base:     segment base */
-extern void write_tss_descriptor(uint16_t selector, uint8_t ar, uint32_t limit, uint32_t base);
+extern void write_tss_descriptor(uint16_t selector, uint32_t limit, uint16_t ar, uint32_t base);
 
 #endif
