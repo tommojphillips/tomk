@@ -57,26 +57,24 @@ size_t kinit_alloc_get_limit(void) {
 void* kinit_alloc_align(size_t size, size_t align) {
 	assert(ka.enabled == true);
 
-	uintptr_t p = 0;
-	size_t s = 0;
+	size_t a = align; 
 
-	if (align == 0) {
-		align = DEFAULT_ALIGNMENT;
+	if (a == 0) {
+		a = DEFAULT_ALIGNMENT;
 	}
 
-	p = ALIGN(uintptr_t, ka.next, align);
-	s = size;
+	uintptr_t p = ALIGN(uintptr_t, ka.next, a);
 
-	if (((p - ka.base) + s) > ka.limit) {
+	if (((p - ka.base) + size) > ka.limit) {
 		return NULL;
 	}
+
+	ka.next = p + size;
 	
-	ka.next = p + s;
-
-	/* Map virtual address */
-	pg_map(p + KVIRT, p, PTE_RW, PAGE_COUNT(s + (PAGE_SIZE-1)));
-
-	return (void*)(p + KVIRT);
+	/* Identity Map virtual address */
+	pg_map((p & 0xFFFFF000), V2P(p & 0xFFFFF000), PTE_RW, TO_PAGE((p & 0xFFF) + size + (PAGE_SIZE-1)));
+	
+	return (void*)p;
 }
 void* kinit_alloc(size_t size) {
 	return kinit_alloc_align(size, 0);

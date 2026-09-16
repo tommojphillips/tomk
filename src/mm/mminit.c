@@ -71,8 +71,8 @@ void mm_init(void) {
 	/* Populate kmmap */
 	mb_init(&kmmap);
 
-	/* Init kernel initialization allocator */
-	kinit_alloc_init(V2P(kend), 0x100000);
+	/* Init kernel-init allocator */
+	kinit_alloc_init(kend, 0x00100000);
 
 	/* Init physical memory allocator */
 	pmm_init(&kmmap);
