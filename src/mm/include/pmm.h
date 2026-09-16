@@ -19,7 +19,7 @@ void pmm_init(const kmmap_t* kmmap);
 
 /* Allocate contiguous pages
  count: requested page count
- Returns: physical page address if successfull, otherwise 0. */
+ Returns: physical page address if successfull, otherwise 0 */
 uintptr_t pmm_alloc(size_t count);
 
 /* Free contiguous pages
@@ -42,6 +42,10 @@ size_t pmm_get_total(void);
 /* Get usable pages
  Returns: usable physical pages, excluding reserved physical pages  */
 size_t pmm_get_usable(void);
+
+/* Get previous largest run from pmm_alloc()
+ Returns: the largest run of physical pages found  */
+size_t pmm_get_largest_run(void);
 
 /* Mark physical page(s) free
  phys: physical page address
