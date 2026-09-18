@@ -8,8 +8,8 @@ int getchar(void) {
 #ifdef LIBK
     int ch = ps2_getchar();
     if (ch == 0) {
-        ch = serial_read();
-    }    
+        ch = serial_read(COM1);
+    }
     if (ch == 0) {
         return EOF;
     }

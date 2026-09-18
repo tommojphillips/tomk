@@ -69,7 +69,7 @@ void kshell(void) {
 			ch = (char)ps2_sc2ch(sc);
 		}
 		else {
-			ch = serial_read();
+			ch = serial_read(COM1);
 		}
 
 		if (ch != EOF) {
@@ -81,7 +81,7 @@ void kshell(void) {
 					i--;
 					buffer[i] = '\0';
 					tty_set_position(x+i, y);
-					serial_write(0x08);
+					serial_write(COM1, 0x08);
 					break;
 
 				case 0x0D: /* Enter */	
@@ -305,7 +305,7 @@ static void print_input(void) {
 			ch = (char)ps2_sc2ch(sc);
 		}
 		else {
-			ch = serial_read();
+			ch = serial_read(COM1);
 		}
 		
 		tty_set_position(x, y);

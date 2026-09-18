@@ -30,7 +30,7 @@ static char buffer[MAX_BUFFER_SIZE];
 
 static void serial_output(void* userparam, char c) {
     (void)userparam;
-    serial_write(c);
+    serial_write(COM1, c);
 }
 static void tty_output(void* userparam, char c) {
     (void)userparam;
