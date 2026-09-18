@@ -3,7 +3,7 @@
 #include <stddef.h>
 
 #ifdef LIBK
-#include <kheap.h>
+#include <kmalloc.h>
 #endif
 
 void* malloc(size_t size) {

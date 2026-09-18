@@ -6,25 +6,60 @@
 #define KHEAP_H
 
 #include <stddef.h>
+#include <stdint.h>
 
-/* Kernel heap initialize */
-void kheap_init(void);
+#include <vmm.h>
 
-/* Allocate physically contiguous memory. (Virtually contiguous and guaranteed to be physically contiguous) */
-void* kmalloc(size_t size);
+typedef struct heap_block_t heap_block_t;
+typedef struct heap_region_t heap_region_t;
 
-/* Free physically contiguous memory */
-void kfree(void* ptr);
+struct heap_block_t {
+    size_t size;
+    uint32_t flags;
 
-/* Allocate physically non-contiguous memory. (Virtually contiguous but not guaranteed to be physically contiguous) */
-void* vmalloc(size_t size);
+    heap_block_t* next;
+    heap_block_t* prev;
+};
 
-/* Free physically non-contiguous memory */
-void vfree(void* ptr);
+struct heap_region_t {
+    size_t size;
+    uint32_t flags;
 
-size_t kheap_get_free(void);
-size_t kheap_get_total(void);
-size_t kheap_get_used(void);
-size_t kheap_get_usable(void);
+    heap_region_t* next;
+    heap_region_t* prev;
+
+    heap_block_t* head;
+    heap_block_t* tail;
+};
+
+typedef struct heap_t {
+    heap_region_t* head;
+    heap_region_t* tail;
+    vmm_t* vmm;
+} heap_t;
+
+/* Heap initialize */
+void heap_init(heap_t* heap, vmm_t* vmm);
+
+/* Heap destroy */
+void heap_destroy(heap_t* heap);
+
+/* Heap alloc */
+void* heap_alloc(heap_t* heap, size_t size, unsigned int contiguous);
+
+/* Heap free */
+void heap_free(heap_t* heap, void* ptr);
+
+/* Heap get free memory (in 4kb pages) */
+size_t heap_get_free(heap_t* heap);
+
+/* Heap get total memory (in 4kb pages) */
+size_t heap_get_total(heap_t* heap);
+
+/* Heap get used memory (in 4kb pages) */
+size_t heap_get_used(heap_t* heap);
+
+/* Heap get usable memory (in 4kb pages) */
+size_t heap_get_usable(heap_t* heap);
 
 #endif

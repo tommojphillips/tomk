@@ -41,88 +41,66 @@
 /* Get block header pointer from region */
 #define REGION_BLOCK(region) ((heap_block_t*)((uint8_t*)(region) + REGION_SIZE))
 
-typedef struct heap_block_t heap_block_t;
-typedef struct heap_region_t heap_region_t;
+void heap_init(heap_t* heap, vmm_t* vmm) {
+    assert(heap != NULL);
+    assert(vmm != NULL);
 
-struct heap_block_t {
-    size_t size;
-    uint32_t flags;
+    heap->head = NULL;
+    heap->tail = NULL;
+    heap->vmm = vmm;
+}
+void heap_destroy(heap_t* heap) {
+    assert(heap != NULL);
 
-    heap_block_t* next;
-    heap_block_t* prev;
-};
+    heap_region_t* region = NULL;
+    heap_block_t* block = NULL;
 
-struct heap_region_t {
-    size_t size;
-    uint32_t flags;
+    for (region = heap->head; region != NULL; region = region->next) {
+        for (block = region->head; block != NULL; block = block->next) {
+            
+            if (!(block->flags & BLOCK_USED)) {
+                continue;
+            }
 
-    heap_region_t* next;
-    heap_region_t* prev;
+        }
+    }
 
-    heap_block_t* head;
-    heap_block_t* tail;
-};
-
-typedef struct heap_t {
-    heap_region_t* head;
-    heap_region_t* tail;
-} heap_t;
-
-static heap_t heap;
-
-static void* _malloc(size_t size, unsigned int contiguous);
-static void _free(void* ptr, unsigned int contiguous);
-
-void kheap_init(void) {
-    heap.head = NULL;
-    heap.tail = NULL;
+    heap->head = NULL;
+    heap->tail = NULL;
+    heap->vmm = NULL;
 }
 
-void* kmalloc(size_t size) {
-    return _malloc(size, REGION_CONTIGUOUS);
+size_t heap_get_total(heap_t* heap) {
+    return vmm_get_total(heap->vmm);
 }
-void* vmalloc(size_t size) {    
-    return _malloc(size, REGION_NONCONTIGUOUS);
+size_t heap_get_free(heap_t* heap) {
+    return vmm_get_free(heap->vmm);
 }
-
-void kfree(void* ptr) {
-    _free(ptr, REGION_CONTIGUOUS);
+size_t heap_get_used(heap_t* heap) {
+    return vmm_get_used(heap->vmm);
 }
-void vfree(void* ptr) {
-    _free(ptr, REGION_NONCONTIGUOUS);
-}
-
-size_t kheap_get_total(void) {
-    return vmm_get_total();
-}
-size_t kheap_get_free(void) {
-    return vmm_get_free();
-}
-size_t kheap_get_used(void) {
-    return vmm_get_used();
-}
-size_t kheap_get_usable(void) {
-    return vmm_get_usable();
+size_t heap_get_usable(heap_t* heap) {
+    return vmm_get_usable(heap->vmm);
 }
 
-static void region_append(heap_region_t* region) {
+static void region_append(heap_t* heap, heap_region_t* region) {
     if (region == NULL) {
         return;
     }
 
     region->next = NULL;
-    region->prev = heap.tail;
+    region->prev = heap->tail;
 
-    if (heap.tail != NULL) {
-        heap.tail->next = region;
+    if (heap->tail != NULL) {
+        heap->tail->next = region;
     }
     else {
-        heap.head = region;
+        heap->head = region;
     }
 
-    heap.tail = region;
+    heap->tail = region;
 }
-static void region_remove(heap_region_t* region) {
+static void region_remove(heap_t* heap, heap_region_t* region) {
     if (region == NULL) {
         return;
     }
@@ -131,14 +109,14 @@ static void region_remove(heap_region_t* region) {
         region->prev->next = region->next;
     }
     else {
-        heap.head = region->next;
+        heap->head = region->next;
     }
 
     if (region->next != NULL) {
         region->next->prev = region->prev;
     }
     else {
-        heap.tail = region->prev;
+        heap->tail = region->prev;
     }
 
     region->next = NULL;
@@ -209,7 +187,7 @@ static int block_alloc(heap_region_t* region, heap_block_t* block, size_t size) 
         
         block_insert_after(region, block, next);
         block->size = size;
-        kdprint("[KHEAP] block_alloc: region=%X block=%X size=%X next=%X\n", region, block, block->size, next);
+        kdprint("[HEAP] block_alloc: region=%X block=%X size=%X next=%X\n", region, block, block->size, next);
     }
     block->flags |= BLOCK_USED;
     return 1;
@@ -239,15 +217,16 @@ static void block_free(heap_region_t* region, heap_block_t* block) {
 
     block->size += HEADER_SIZE + next->size;
 
-    kdprint("[KHEAP] block_free: region=%X block=%X size=%X\n", region, block, block->size);
+    kdprint("[HEAP] block_free: region=%X block=%X size=%X\n", region, block, block->size);
 
     block_remove(region, next);
 }
-static heap_block_t* block_find(void* ptr, heap_region_t** out_region) {
+static heap_block_t* block_find(heap_t* heap, void* ptr, heap_region_t** out_region) {
     heap_region_t* region;
     heap_block_t* block;
 
-    for (region = heap.head; region != NULL; region = region->next) {
+    /* Find block in regions */
+    for (region = heap->head; region != NULL; region = region->next) {
         for (block = region->head; block != NULL; block = block->next) {
             if (BLOCK_PTR(block) == ptr) {
                 if (out_region != NULL) {
@@ -259,23 +238,29 @@ static heap_block_t* block_find(void* ptr, heap_region_t** out_region) {
     }
     return NULL;
 }
-static heap_block_t* block_find_free(size_t size, unsigned int contiguous, heap_region_t** out_region) {
+static heap_block_t* block_find_free(heap_t* heap, size_t size, unsigned int contiguous, heap_region_t** out_region) {
     heap_region_t* region = NULL;
     heap_block_t* block = NULL;
 
     /* Search existing regions for a suitable free block */
-    for (region = heap.head; region != NULL; region = region->next) {
+    for (region = heap->head; region != NULL; region = region->next) {
         for (block = region->head; block != NULL; block = block->next) {
             
+            /* Block in use ? */
             if (block->flags & BLOCK_USED) {
                 continue;
             }
-            if (contiguous != (region->flags & REGION_CONTIGUOUS)) {
-                continue;
-            }
+
+            /* Block big enough? */
             if (block->size < size) {
                 continue;
             }
+
+            /* Contiguous requirement? */
+            if (contiguous != (region->flags & REGION_CONTIGUOUS)) {
+                continue;
+            }
+
             if (out_region != NULL) {
                 *out_region = region;
             }
@@ -284,53 +269,51 @@ static heap_block_t* block_find_free(size_t size, unsigned int contiguous, heap_
     }
     return NULL;
 }
-static heap_region_t* heap_grow(size_t size, unsigned int contiguous) {
+static heap_region_t* heap_grow(heap_t* heap, size_t size, unsigned int contiguous) {
     /* Obtain a REGION */
     heap_region_t* region = NULL;
     heap_block_t* block = NULL;
     size_t pages = 0;
     
-    pages = PAGE_COUNT(size + REGION_SIZE + HEADER_SIZE + (PAGE_SIZE-1));
+    pages = TO_PAGE(size + REGION_SIZE + HEADER_SIZE + (PAGE_SIZE-1));
 
+    /* Always ask the VMM for at min GROW_PAGES */
     if (pages < GROW_PAGES) {
         pages = GROW_PAGES;
     }
     
     if (contiguous) {
-        region = vmm_alloc_contiguous(pages);
+        region = vmm_alloc_contiguous(heap->vmm, pages);
         if (region == NULL) {
             return NULL;
         }
         region->flags = REGION_CONTIGUOUS;
     }
     else {
-        region = vmm_alloc(pages);
+        region = vmm_alloc(heap->vmm, pages);
         if (region == NULL) {
             return NULL;
         }
         region->flags = REGION_NONCONTIGUOUS;
     }
 
-    region->size = pages << 12;
-    region->head = NULL;
-    region->tail = NULL;    
-    region->next = NULL;
-    region->prev = NULL;
-
     block = REGION_BLOCK(region);
-    block->size = region->size - REGION_SIZE - HEADER_SIZE;
+    block->size = TO_ADDR(pages) - REGION_SIZE - HEADER_SIZE;
     block->flags = BLOCK_FREE;
     block->next = NULL;
     block->prev = NULL;
 
+    region->size = TO_ADDR(pages);
     region->head = block;
     region->tail = block;
+    region->next = NULL;
+    region->prev = NULL;
 
-    kdprint("[KHEAP] heap_grow: region=%X size=%X pages=%d end=%X contiguous=%d\n", region, region->size, pages, (uint8_t*)region + region->size, contiguous);
+    kdprint("[HEAP] heap_grow: region=%X size=%X pages=%d end=%X contiguous=%d\n", region, region->size, pages, (uint8_t*)region + region->size, contiguous);
 
     return region;
 }
-static void heap_free(heap_region_t* region, heap_block_t* block) {
+static void heap_shrink(heap_t* heap, heap_region_t* region, heap_block_t* block) {
     
     /* Merge with following block */
     block_free(region, block);
@@ -343,33 +326,37 @@ static void heap_free(heap_region_t* region, heap_block_t* block) {
 
     /* If this region now contains exactly one free block, return the region to the VMM */
     if (region->head == region->tail && region->head == block && !(block->flags & BLOCK_USED)) {
-        size_t page_count = PAGE_COUNT(region->size);
+        size_t page_count = TO_PAGE(region->size);
         void* virt_addr = region;
 
-        kdprint("[KHEAP] heap_free: region=%X size=%X contiguous=%d\n", virt_addr, region->size, (region->flags & REGION_CONTIGUOUS));
+        kdprint("[HEAP] heap_shrink: region=%X size=%X contiguous=%d\n", virt_addr, region->size, (region->flags & REGION_CONTIGUOUS));
 
-        region_remove(region);
-
-        if (region->flags & REGION_CONTIGUOUS) {
-           vmm_free_contiguous(virt_addr, page_count);
-        }
-        else {
-           vmm_free(virt_addr, page_count);
-        }
+        region_remove(heap, region);
+        vmm_free(heap->vmm, virt_addr, page_count);
     }
 }
-static void* _malloc(size_t size, unsigned int contiguous) {
+
+void* heap_alloc(heap_t* heap, size_t size, unsigned int contiguous) {
     heap_region_t* region = NULL;
     heap_block_t* block = NULL;
+
+    if (heap == NULL) {
+        return NULL;
+    }
 
     if (size == 0) {
         return NULL;
     }
 
+    /* Blocks always start off aligned to a page boundary. We 
+     make sure to align the size?!? to always keep the next 
+     allocation in this block aligned to atleast BLOCK_ALIGNMENT --
+     --seems wrong. shouldnt i just keep BLOCK_PTR aligned to BLOCK_ALIGNMENT? 
+     There would be a reason; not sure what i was thinking because i didnt fucking comment it. */
     size = ALIGN(size_t, size, BLOCK_ALIGNMENT);
 
     /* Search existing regions for a suitable free block */
-    block = block_find_free(size, contiguous, &region);
+    block = block_find_free(heap, size, contiguous, &region);
     if (block != NULL) {
         /* Allocate from the new free region */
         if (block_alloc(region, block, size)) {
@@ -378,13 +365,13 @@ static void* _malloc(size_t size, unsigned int contiguous) {
     }
 
     /* No suitable block; Create new region */
-    region = heap_grow(size, contiguous);
+    region = heap_grow(heap, size, contiguous);
     if (region == NULL) {
         return NULL;
     }
 
     /* Append new region to heap */
-    region_append(region);
+    region_append(heap, region);
     block = region->head;
 
     /* Allocate from the new free region */
@@ -393,35 +380,31 @@ static void* _malloc(size_t size, unsigned int contiguous) {
     }
     return NULL;
 }
-static void _free(void* ptr, unsigned int contiguous) {
+void heap_free(heap_t* heap, void* ptr) {
     heap_region_t* region = NULL;
     heap_block_t* block = NULL;
+
+    if (heap == NULL) {
+        return;
+    }
 
     if (ptr == NULL) {
         return;
     }
 
-    block = block_find(ptr, &region);
+    block = block_find(heap, ptr, &region);
     if (block == NULL) {
-        kprint("[KHEAP] Error invalid pointer: %08X\n", ptr);
+        kprint("[HEAP] Error invalid pointer: %08X\n", ptr);
         return;
     }
     
-    if (contiguous != (region->flags & REGION_CONTIGUOUS)) {
-        kprint("[KHEAP] Error %cfree used for %cmalloc call: %08X\n", 
-            contiguous ? 'v' : 'k',
-            contiguous ? 'k' : 'v',
-            ptr);
-        return;
-    }
-
     if (!(block->flags & BLOCK_USED)) {
-        kprint("[KHEAP] Error double free: %08X\n", ptr);
+        kprint("[HEAP] Error double free: %08X\n", ptr);
         return;
     }
 
     block->flags &= ~BLOCK_USED;
     
-    /* Heap shrink */
-    heap_free(region, block);
+    /* Release memory not in use by heap */
+    heap_shrink(heap, region, block);
 }
