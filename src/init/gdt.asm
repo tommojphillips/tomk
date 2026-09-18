@@ -19,9 +19,9 @@ KDATA   equ gdt_kdata  - gdt       ; kernel data segment
 KSTACK  equ gdt_kstack - gdt       ; kernel stack segment
 KTSS    equ gdt_tss    - gdt       ; Kernel tss segment
 
-UCODE   equ (gdt_ucode  - gdt) | 3 ; user code segment
-UDATA   equ (gdt_udata  - gdt) | 3 ; user data segment
-USTACK  equ (gdt_ustack - gdt) | 3 ; user stack segment
+UCODE   equ (gdt_ucode  - gdt) | 3 ; User code segment
+UDATA   equ (gdt_udata  - gdt) | 3 ; User data segment
+USTACK  equ (gdt_ustack - gdt) | 3 ; User stack segment
 
 Section .data
 
@@ -48,7 +48,7 @@ gdt_kdata:                         ; DATA 0x00000000-0xFFFFFFFF
     db 10001111b                   ; gran=4k, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_kstack:                        ; STACK 0x00900000-0x009FFFFF
+gdt_kstack:                        ; STACK 0x00000000-0x009FFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
@@ -72,7 +72,7 @@ gdt_udata:                         ; DATA 0x00000000-0xFFFFFFFF
     db 10001111b                   ; gran=4k, limit 19:16
     db 0x00                        ; base 31:24
 
-gdt_ustack:                        ; STACK 0x00900000-0x009FFFFF
+gdt_ustack:                        ; STACK 0x00000000-0x009FFFFF
     dw 0xFFFF                      ; limit 15:0
     dw 0x0000                      ; base 15:0
     db 0x00                        ; base 23:16
