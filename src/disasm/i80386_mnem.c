@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <paging.h>
+
 #include "i80386_mnem.h"
 
 #define I80386_DECODE_OK           0 /* instruction was decoded */
@@ -133,16 +135,25 @@ uint32_t sign_extend16_32(uint16_t value) {
 }
 
 static int fetch_byte(I80386_MNEM* mnem, uint8_t* value) {
+	if (pg_virt2phys(EIP) == 0) {
+		return 0;
+	}
 	*value = *(uint8_t*)EIP;
 	mnem->counter += 1;
 	return 1;
 }
 static int fetch_word(I80386_MNEM* mnem, uint16_t* value) {
+	if (pg_virt2phys(EIP) == 0) {
+		return 0;
+	}
 	*value = *(uint16_t*)EIP;
 	mnem->counter += 2;
 	return 1;
 }
 static int fetch_dword(I80386_MNEM* mnem, uint32_t* value) {
+	if (pg_virt2phys(EIP) == 0) {
+		return 0;
+	}
 	*value = *(uint32_t*)EIP;
 	mnem->counter += 4;
 	return 1;
