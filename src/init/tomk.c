@@ -11,10 +11,10 @@
 #include <kdprint.h>
 #include <kernel.h>
 #include <linkvars.h>
+#include <mminit.h>
 
 extern void tty_init(void); /* driver/tty.c */
 extern void kshell(void);   /* shell.c */
-extern void mm_init(void);  /* mminit.c */
 
 int kver_major = 0;
 int kver_minor = 1;
