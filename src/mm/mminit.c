@@ -53,7 +53,12 @@
 #include <kdprint.h>
 #include <kernel.h>
 
-void mm_init(void) {
+/* Kernel virtual Memory Manager */
+vmm_t kvmm;
+heap_t kheap;
+
+void mminit(void) {
+	/* Init kernel memory stack ( PMM -> VMM -> HEAP )*/
 	uintptr_t kbase = 0;
 	uintptr_t kend = 0;
 	uintptr_t ksize = 0;
@@ -97,6 +102,8 @@ void mm_init(void) {
 	vmm_mark_used(&kvmm, kbase, ksize);                       /* Mark kernel image used */
 	vmm_mark_used(&kvmm, kinit_alloc_base, kinit_alloc_size); /* Mark kinit_alloc allocations used */
 
-	/* Init kernel heap allocator */
-	kheap_init();
+	/* Init kernel heap */
+	heap_init(&kheap, &kvmm);
+
+	kprint("[MM-INIT] Init OK\n");
 }
