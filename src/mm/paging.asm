@@ -21,6 +21,9 @@ global pg_pt
 %include "src\include\kspacedef.inc"
 %include "src\mm\include\paging.inc"
 
+PD_VIRT equ 0xFFFFF000
+PT_VIRT equ 0xFFC00000
+
 ; Page directory / Page tables
 Section .bss
     align 4096, db 0
@@ -46,7 +49,7 @@ _map_page:
 
 .loc_pde:
     push esi                   
-    call pg_loc_pde                              ; get PDE pointer in EAX
+    call pg_loc_pde                              ; get pde pointer in EAX
     add esp, 4
 
     test dword [eax], P                          ; pde present?
@@ -72,6 +75,7 @@ _map_page:
     or ebx, P                                    ; set present bit
     or ecx, ebx                                  ; set flags
     mov [eax], ecx                               ; write pte
+    invlpg [esi]                                 ; invalidate TLB entry
 
 .done:
     pop edi
@@ -102,8 +106,8 @@ _unmap_page:
     test dword [eax], P                          ; pte present?
     jz .done                                     ; no, done
     
-.build_pte:
-    mov [eax], NP                                ; write pte
+    mov dword [eax], NP                          ; write pte
+    invlpg [esi]                                 ; invalidate TLB entry
 
 .done:
     pop esi
@@ -196,7 +200,7 @@ pg_invalidate:
 pg_loc_pde:
     mov eax, [esp+4]                             ; virtual_address
     shr eax, 22                                  ; compute pd_index
-    lea eax, [pg_pd+eax*4]                       ; pde = pd_base + pd_index * 4
+    lea eax, [PD_VIRT+eax*4]                     ; pde = pd_base + pd_index * 4
     ret
 
 ; located PTE
@@ -214,7 +218,7 @@ pg_loc_pte:
     shr ecx, 10
     and ecx, 0xFFFFF000                          ; pt_offset = ((virtual_address >> 10) & 0xFFFFF000)
 
-    lea eax, [pg_pt+ecx+eax*4]                   ; pte = pt_base + pt_offset + pt_index * 4
+    lea eax, [PT_VIRT+ecx+eax*4]                 ; pte = pt_base + pt_offset + pt_index * 4
     ret
 
 ; get physical address mapped to linear address

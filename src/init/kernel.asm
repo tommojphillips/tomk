@@ -57,12 +57,6 @@ kernel_init:
     call pg_unmap                                ; ummap .boot section identity map
     add esp, 8
     
-    ; invalidate .boot section identity map
-    push edx                                     ; page_count
-    push sec_boot_start                          ; virtual address
-    call pg_invalidate                           ; invalidate .boot section identity map
-    add esp, 8
-    
     call gdt_init                                ; setup gdt
     call idt_init                                ; setup idt, int handlers
     call tss_init                                ; setup tss
