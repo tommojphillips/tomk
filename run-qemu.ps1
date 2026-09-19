@@ -77,7 +77,7 @@ if ($null -eq $p) {
 
 $handle = [IntPtr]::Zero
 
-for ($i = 0; $i -lt 100; $i++) {
+while (1) {
 
     Start-Sleep -Milliseconds 10
 
