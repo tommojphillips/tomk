@@ -29,6 +29,7 @@ static scheduler_t scheduler;
 
 static process_t* create_kprocess(uintptr_t entry, uint8_t* data, size_t size);
 static void idle_proc1(void);
+static void cleanup_proc(void);
 
 void scheduler_init(void) {
 
@@ -144,7 +145,16 @@ static process_t* create_kprocess(uintptr_t entry, uint8_t* data, size_t size) {
     if (stack == NULL) {
         return NULL;
     }
-    proc->context.esp = (uintptr_t)stack + DEFAULT_STACK;
+
+    /* Set the stack to the top of stack */
+    stack += DEFAULT_STACK;
+
+    /* Inject cleanup return function */
+    stack -= sizeof(uintptr_t);
+    *((uintptr_t*)stack) = (uintptr_t)&cleanup_proc;
+    
+    /* Set stack pointer */
+    proc->context.esp = (uintptr_t)stack;
     proc->context.ss = KSTACK;
 
     /* Setup interrupt frame */
@@ -165,6 +175,13 @@ static process_t* create_kprocess(uintptr_t entry, uint8_t* data, size_t size) {
 
 	kdprint("[SCHEDULER] kprocess created id=%u eip=0x%08X\n", proc->id, proc->frame.eip);
     return proc;
+}
+
+/* Process cleanup */
+static void cleanup_proc(void) {
+    process_t* proc = scheduler_get_current_process();
+    kdprint("[SCHEDULER] kprocess cleanup id=%u eip=0x%08X\n", proc->id, proc->frame.eip);
+    scheduler_unload_kprocess(proc);
 }
 
 /* Idle process */
