@@ -11,7 +11,7 @@ MB_MMAP     equ (1 << 1)
 MB_FLAGS    equ (MB_4KB | MB_MMAP)
 MB_CHECKSUM equ (0 - (MB_MAGIC + MB_FLAGS))
  
-section .mb
+section .mb progbits alloc
 	align 4, db 0
 	dd MB_MAGIC
 	dd MB_FLAGS
