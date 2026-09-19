@@ -44,10 +44,10 @@ section .text
 ; kernel init
 kernel_init:
     mov esp, kstack_top                          ; setup stack
-    
+
     ; compute .boot_section size
     mov edx, sec_boot_end
-    add edx, 0xFFF
+    add edx, PAGE_SIZE-1
     sub edx, sec_boot_start
     shr edx, 12                                  ; page_count = (end + 0xFFF - start) >> 12
 
@@ -63,7 +63,10 @@ kernel_init:
     call pic_init                                ; setup pic
     call pit_init                                ; setup pit
     call ps2_init                                ; setup ps/2
+
+    push 0x3F8                                   ; COM1
     call serial_init                             ; setup uart
+    add esp, 4
 
     sti                                          ; enable interrupts
 
