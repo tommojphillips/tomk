@@ -58,33 +58,14 @@ LIB_DIR := lib/$(CFG)
 # Include paths
 # ------------------------------------------------------------
 
-INCLUDES := \
-	-I$(SRC_DIR)/libc/include \
-	-I$(SRC_DIR)/mm/include \
-	-I$(SRC_DIR)/kd/include \
-	-I$(SRC_DIR)/disasm/include \
-	-I$(SRC_DIR)/driver/include \
-	-I$(SRC_DIR)/video/include \
-	-I$(SRC_DIR)/ke/include \
-	-I$(SRC_DIR)/init/include \
-	-I$(SRC_DIR)/scheduler/include \
-	-I$(SRC_DIR)/include
+INCLUDES := -I$(SRC_DIR)/include
 
 # ------------------------------------------------------------
 # Modules
 # ------------------------------------------------------------
 
-MODULES := \
-	libc \
-	mm \
-	kd \
-	disasm \
-	driver \
-	video \
-	shell \
-	ke \
-	init \
-	scheduler
+MODULE_MAKEFILES := $(wildcard $(SRC_DIR)/*/makefile)
+include $(MODULE_MAKEFILES)
 
 # ------------------------------------------------------------
 # Linker
@@ -118,6 +99,16 @@ $(1)_OBJ := \
 
 $(1)_LIB := \
 	$$(LIB_DIR)/$(1).a
+
+$$(OBJ_DIR)/$(1)/%.c.o: $$(SRC_DIR)/$(1)/%.c
+	@if not exist "$$(dir $$@)" mkdir "$$(dir $$@)"
+	@$$(CC) -c $$< -o $$@ $$(INCLUDES) $$($(1)_CFLAGS) $$(CFLAGS)
+	@echo $$<
+
+$$(OBJ_DIR)/$(1)/%.asm.o: $$(SRC_DIR)/$(1)/%.asm
+	@if not exist "$$(dir $$@)" mkdir "$$(dir $$@)"
+	@$$(AS) $$(ASFLAGS) -MD $$(@:.o=.d) -o $$@ $$<
+	@echo $$<
 
 endef
 
@@ -211,29 +202,6 @@ endif
 
 	@echo $(OUT_DIR)/$(OUT_FN).map
 	@echo $@
-
-# ------------------------------------------------------------
-# C compilation
-# ------------------------------------------------------------
-
-$(OBJ_DIR)/libc/%.c.o: $(SRC_DIR)/libc/%.c
-	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	@$(CC) -c $< -o $@ $(INCLUDES) -DLIBK $(CFLAGS)
-	@echo $<
-
-$(OBJ_DIR)/%.c.o: $(SRC_DIR)/%.c
-	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	@$(CC) -c $< -o $@ $(INCLUDES) $(CFLAGS)
-	@echo $<
-
-# ------------------------------------------------------------
-# Assembly
-# ------------------------------------------------------------
-
-$(OBJ_DIR)/%.asm.o: $(SRC_DIR)/%.asm
-	@if not exist "$(dir $@)" mkdir "$(dir $@)"
-	@$(AS) $(ASFLAGS) -MD $(@:.o=.d) -o $@ $<
-	@echo $<
 
 # ------------------------------------------------------------
 # Clean
