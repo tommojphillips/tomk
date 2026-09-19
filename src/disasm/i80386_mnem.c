@@ -319,7 +319,7 @@ static void get_base_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 			break;
 	}
 }
-static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
+static int i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 	/* Get R/M pointer */
 	
 	int seg_index = get_seg_index(mnem);
@@ -337,7 +337,9 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 						if (mnem->sib.base == 0b101) {
 							/* [disp32] */
 							uint32_t disp = 0;
-							fetch_dword(mnem, &disp);
+							if (!fetch_dword(mnem, &disp)) {
+								return 0;
+							}
 
 							add_token(line, MNEM_TOKEN_IMMEDIATE, NULL, 0, disp, 4);
 						}
@@ -359,7 +361,9 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 						if (mnem->sib.base == 0b101) {
 							/* [(index * scale) + disp32] */
 							uint32_t disp = 0;
-							fetch_dword(mnem, &disp);
+							if (!fetch_dword(mnem, &disp)) {
+								return 0;
+							}
 
 							const char* index = reg32_mnem[mnem->sib.index];
 							add_token(line, MNEM_TOKEN_GENERAL_REGISTER, index, 3, mnem->sib.index, 4);
@@ -383,7 +387,9 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 				else if (mnem->modrm.rm == 0b101) {
 					/* [disp32] */
 					uint32_t disp = 0;
-					fetch_dword(mnem, &disp);
+					if (!fetch_dword(mnem, &disp)) {
+						return 0;
+					}
 
 					add_token(line, MNEM_TOKEN_IMMEDIATE, NULL, 0, disp, 4);
 				}
@@ -397,7 +403,9 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 				if (mnem->modrm.rm == 0b110) {
 					/* [disp16] */
 					uint16_t disp = 0;
-					fetch_word(mnem, &disp);
+					if (!fetch_word(mnem, &disp)) {
+						return 0;
+					}
 
 					add_token(line, MNEM_TOKEN_IMMEDIATE, NULL, 0, disp, 2);
 				}
@@ -410,7 +418,9 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 
 		case 0b01: {
 			uint8_t disp = 0;
-			fetch_byte(mnem, &disp);
+			if (!fetch_byte(mnem, &disp)) {
+				return 0;
+			}
 
 			if (mnem->addressing_size) {				
 				if (mnem->modrm.rm == 0b100) {
@@ -458,7 +468,9 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 		case 0b10: {
 			if (mnem->addressing_size) {
 				uint32_t disp = 0;
-				fetch_dword(mnem, &disp);
+				if (!fetch_dword(mnem, &disp)) {
+					return 0;
+				}
 
 				if (mnem->modrm.rm == 0b100) {
 					/* [SIB + disp32] */
@@ -497,7 +509,9 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 			else {
 				/* memory mode; 16bit displacement - [ base16 + disp16 ] */
 				uint16_t disp = 0;
-				fetch_word(mnem, &disp);
+				if (!fetch_word(mnem, &disp)) {
+					return 0;
+				}
 
 				get_base_token(mnem, line);
 				add_token(line, MNEM_TOKEN_OPERATOR, "+", 1, 0, 0);
@@ -506,6 +520,7 @@ static void i80386_get_modrm_token(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 		} break;
 	}
 	add_token(line, MNEM_TOKEN_MEMORY, "]", 1, 0, 0);
+	return 1;
 }
 static void modrm_get_token32(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 	/* Get R/M pointer */
@@ -537,1029 +552,331 @@ static void modrm_get_token8(I80386_MNEM* mnem, MNEM_RENDER_LINE* line) {
 		i80386_get_modrm_token(mnem, line);
 	}
 }
+static void add_modrm_tokens(I80386_MNEM* mnem, MNEM_RENDER_LINE* line, int size) {
+	switch (size) { 
+		case 1:
+			modrm_get_token8(mnem, line);
+			break; 
+		case 2:
+			modrm_get_token16(mnem, line);
+			break; 
+		case 4:
+			modrm_get_token32(mnem, line);
+			break;
+	}
+}
 
-static void fetch_modrm(I80386_MNEM* mnem) {
-	 fetch_byte(mnem, &mnem->modrm.byte);
-	 sib_check(mnem);
+static int fetch_modrm(I80386_MNEM* mnem) {
+	 if (!fetch_byte(mnem, &mnem->modrm.byte)) {
+		return 0;
+	 }
+	 return sib_check(mnem);
+}
+
+/* Opcode helpers */
+
+static void opcode_80(I80386_MNEM* mnem, const char* mnemonic) {
+	int reg_size = 0;
+	int imm_size = 0;
+	uint32_t imm = 0;
+
+	if (W) {
+		if (S) {
+			if (mnem->operand_size) {
+				/* reg32, disp8 */
+				uint8_t imm8 = 0;
+				if (!fetch_byte(mnem, &imm8)) {
+					return;
+				}
+				imm = sign_extend8_32(imm8);
+				imm_size = 4;
+				reg_size = 4;
+			}
+			else {
+				/* reg16, disp8 */
+				uint8_t imm8 = 0;
+				if (!fetch_byte(mnem, &imm8)) {
+					return;
+				}
+				imm = sign_extend8_16(imm8);
+				imm_size = 2;
+				reg_size = 2;
+			}
+		}
+		else {
+			if (mnem->operand_size) {
+				/* reg32, disp32 */
+				uint32_t imm32 = 0;
+				if (!fetch_dword(mnem, &imm32)) {
+					return;
+				}
+				imm = imm32;
+				imm_size = 4;
+				reg_size = 4;
+			}
+			else {
+				/* reg16, disp16 */
+				uint16_t imm16 = 0;
+				if (!fetch_word(mnem, &imm16)) {
+					return;
+				}
+				imm = imm16;
+				imm_size = 2;
+				reg_size = 2;
+			}
+		}
+	}
+	else {
+		/* reg8, disp8 */
+		uint8_t imm8 = 0;
+		if (!fetch_byte(mnem, &imm8)) {
+			return;
+		}
+		imm = imm8;
+		imm_size = 1;
+		reg_size = 1;
+	}
+
+	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, mnemonic, strlen(mnemonic), 0, 0);
+	add_modrm_tokens(mnem, mnem->line, reg_size);
+	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
+	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, imm_size);
+}
+static void opcode_rm_reg(I80386_MNEM* mnem, const char* mnemonic) {
+	/* add r/m, reg (00/01/02/03) b000000DW */
+	const char* reg = NULL;
+	int reg_size = 0;
+
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
+	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, mnemonic, strlen(mnemonic), 0, 0);
+	if (W) {
+		if (mnem->operand_size) {
+			reg = reg32_mnem[mnem->modrm.reg];
+			reg_size = 4;
+		}
+		else {
+			reg = reg16_mnem[mnem->modrm.reg];
+			reg_size = 2;
+		}
+	}
+	else {
+		reg = reg8_mnem[mnem->modrm.reg];
+		reg_size = 1;
+	}
+
+	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, mnemonic, strlen(mnemonic), 0, 0);
+	if (D) {
+		add_modrm_tokens(mnem, mnem->line, reg_size);
+		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
+		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, strlen(reg), mnem->modrm.reg, reg_size);
+	}
+	else {
+		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, strlen(reg), mnem->modrm.reg, reg_size);
+		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
+		add_modrm_tokens(mnem, mnem->line, reg_size);
+	}
+}
+static void opcode_accum_imm(I80386_MNEM* mnem, const char* mnemonic) {
+	/* add AL/AX/EAX, imm (04/05) b0000010W */
+	const char* reg = NULL;
+	int reg_size = 0;
+	uint8_t imm = 0;
+
+	if (W) {
+		if (mnem->operand_size) {
+			reg = "eax";
+			reg_size = 4;
+			uint32_t imm32 = 0;
+			if (!fetch_dword(mnem, &imm32)) {
+				return;
+			}
+			imm = imm32;
+		}
+		else {
+			reg = "ax";
+			reg_size = 2;
+			uint16_t imm16 = 0;
+			if (!fetch_word(mnem, &imm16)) {
+				return;
+			}
+			imm = imm16;
+		}
+	}
+	else {
+		reg = "al";
+		reg_size = 1;
+		uint8_t imm8 = 0;
+		if (!fetch_byte(mnem, &imm8)) {
+			return;
+		}
+		imm = imm8;
+	}
+
+	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, mnemonic, strlen(mnemonic), 0, 0);
+	add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, strlen(reg), REG_EAX, reg_size);
+	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
+	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, reg_size);
+}
+static void opcode_shift_rm_cl(I80386_MNEM* mnem, const char* mnemonic) {
+	/* Shift (D0/D1/D2/D3, R/M reg = XXX) b110100VW */
+	int reg_size = 0;
+	
+	if (W) {
+		if (mnem->operand_size) {
+			reg_size = 4;
+		}
+		else {
+			reg_size = 2;
+		}
+	}
+	else {
+		reg_size = 1;
+	}
+
+	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, mnemonic, strlen(mnemonic), 0, 0);
+	add_modrm_tokens(mnem, mnem->line, reg_size);
+	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
+	if (VW) {
+		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
+	}
+	else {
+		add_token(mnem->line, MNEM_TOKEN_NUMBER, 0, 0, 1, 0);
+	}
+}
+static void opcode_shift_rm_imm(I80386_MNEM* mnem, const char* mnemonic) {
+	/* Shift (C0/C1, R/M reg = XXX) b1100000W */
+	uint8_t imm = 0;
+	int reg_size = 0;
+
+	if (!fetch_byte(mnem, &imm)) {
+		return;
+	}
+
+	if (W) {
+		if (mnem->operand_size) {
+			reg_size = 4;
+		}
+		else {
+			reg_size = 2;
+		}
+	}
+	else {
+		reg_size = 1;
+	}
+	
+	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, mnemonic, strlen(mnemonic), 0, 0);
+	add_modrm_tokens(mnem, mnem->line, reg_size);
+	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
+	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
 }
 
 /* Opcodes */
 
 static void add_rm_imm(I80386_MNEM* mnem) {
-	/* add r/m, imm (80/81/82/83, R/M reg = b000) b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "add", 3, 0, 0);
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	/* add r/m, imm (80/81/82/83, R/M reg = b000) b100000SW */	
+	opcode_80(mnem, "add");
 }
 static void add_rm_reg(I80386_MNEM* mnem) {
 	/* add r/m, reg (00/01/02/03) b000000DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "add", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "add");
 }
 static void add_accum_imm(I80386_MNEM* mnem) {
 	/* add AL/AX/EAX, imm (04/05) b0000010W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "add", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, REG_EAX, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, REG_AX, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, REG_AL, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "add");
 }
 
 static void or_rm_imm(I80386_MNEM* mnem) {
 	/* or r/m, imm (80/81/82/83, R/M reg = b001) b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "or", 2, 0, 0);
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_80(mnem, "or");
 }
 static void or_rm_reg(I80386_MNEM* mnem) {
 	/* or r/m, reg (08/0A/09/0B) b000010DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "or", 2, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "or");
 }
 static void or_accum_imm(I80386_MNEM* mnem) {
 	/* or AL/AX, imm (0C/0D) b0000110W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "or", 2, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, REG_EAX, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, REG_AX, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, REG_AL, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "or");
 }
 
 static void adc_rm_imm(I80386_MNEM* mnem) {
 	/* adc r/m, imm (80/81/82/83, R/M reg = b010) b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "adc", 3, 0, 0);
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_80(mnem, "adc");
 }
 static void adc_rm_reg(I80386_MNEM* mnem) {
 	/* adc r/m, reg (10/12/11/13) b000100DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "adc", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "adc");
 }
 static void adc_accum_imm(I80386_MNEM* mnem) {
 	/* adc AL/AX, imm (14/15) b0001010W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "adc", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, REG_EAX, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, REG_AX, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, REG_AL, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "adc");
 }
 
 static void sbb_rm_imm(I80386_MNEM* mnem) {
 	/* sbb r/m, imm (80/81/82/83, R/M reg = b011)  b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sbb", 3, 0, 0);
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_80(mnem, "sbb");
 }
 static void sbb_rm_reg(I80386_MNEM* mnem) {
 	/* sbb r/m, reg (18/1A/19/1B) b000110DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sbb", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "sbb");
 }
 static void sbb_accum_imm(I80386_MNEM* mnem) {
 	/* sbb AL/AX/EAX, imm (1C/1D) b0001110W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sbb", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, REG_EAX, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, REG_AX, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, REG_AL, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "sbb");
 }
 
 static void and_rm_imm(I80386_MNEM* mnem) {
 	/* and r/m, imm (80/81/82/83, R/M reg = b100) b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "and", 3, 0, 0);
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_80(mnem, "and");
 }
 static void and_rm_reg(I80386_MNEM* mnem) {
 	/* and r/m, reg (20/22/21/23) b001000DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "and", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "and");
 }
 static void and_accum_imm(I80386_MNEM* mnem) {
 	/* and AL/AX/EAX, imm (24/25) b0010010W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "and", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, REG_EAX, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, REG_AX, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, REG_AL, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "and");
 }
 
 static void sub_rm_imm(I80386_MNEM* mnem) {
-	/* sub r/m, imm (80/81, R/M reg = b101) b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sub", 3, 0, 0);
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	/* sub r/m, imm (80/81/82/83, R/M reg = b101) b100000SW */
+	opcode_80(mnem, "sub");
 }
 static void sub_rm_reg(I80386_MNEM* mnem) {
 	/* sub r/m, reg (28/2A/29/2B) b001010DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sub", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "sub");
 }
 static void sub_accum_imm(I80386_MNEM* mnem) {
 	/* sub AL/AX/EAX, imm (2C/2D) b0010110W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sub", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, 0, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, 0, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, 0, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "sub");
 }
 
 static void xor_rm_imm(I80386_MNEM* mnem) {
 	/* xor r/m, imm (80/81/82/83, R/M reg = b110) b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "xor", 3, 0, 0);
-
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_80(mnem, "xor");
 }
 static void xor_rm_reg(I80386_MNEM* mnem) {
 	/* xor r/m, reg (30/32/31/33) b001100DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "xor", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "xor");
 }
 static void xor_accum_imm(I80386_MNEM* mnem) {
 	/* xor AL/AX/EAX, imm (34/35) b0011010W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "xor", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, 0, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, 0, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, 0, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "xor");
 }
 
 static void cmp_rm_imm(I80386_MNEM* mnem) {
 	/* cmp r/m, imm (80/81/82/83, R/M reg = b111)  b100000SW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cmp", 3, 0, 0);
-	if (W) {
-		if (S) {
-			if (mnem->operand_size) {
-				/* reg32, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint32_t se = sign_extend8_32(imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 4);
-			}
-			else {
-				/* reg16, disp8 */
-				uint8_t imm = 0;
-				fetch_byte(mnem, &imm);
-				uint16_t se = sign_extend8_16(imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, se, 2);
-			}
-		}
-		else {
-			if (mnem->operand_size) {
-				/* reg32, disp32 */
-				uint32_t imm = 0;
-				fetch_dword(mnem, &imm);
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-			}
-			else {
-				/* reg16, disp16 */
-				uint16_t imm = 0;
-				fetch_word(mnem, &imm);
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-			}
-		}
-	}
-	else {
-		/* reg8, disp8 */
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		modrm_get_token8(mnem, mnem->line);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_80(mnem, "cmp");
 }
 static void cmp_rm_reg(I80386_MNEM* mnem) {
 	/* cmp r/m, reg (38/39/3A/3B) b001110DW */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cmp", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "cmp");
 }
 static void cmp_accum_imm(I80386_MNEM* mnem) {
 	/* cmp AL/AX, imm (3C/3D) b0011110W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cmp", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, 0, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, 0, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, 0, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "cmp");
 }
 
 static void test_rm_imm(I80386_MNEM* mnem) {
@@ -1569,7 +886,9 @@ static void test_rm_imm(I80386_MNEM* mnem) {
 		if (mnem->operand_size) {
 			/* reg32, disp32 */
 			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
+			if (!fetch_dword(mnem, &imm)) {
+				return;
+			}
 			modrm_get_token32(mnem, mnem->line);
 			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
@@ -1577,7 +896,9 @@ static void test_rm_imm(I80386_MNEM* mnem) {
 		else {
 			/* reg16, disp16 */
 			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
+			if (!fetch_word(mnem, &imm)) {
+				return;
+			}
 			modrm_get_token16(mnem, mnem->line);
 			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
@@ -1585,7 +906,9 @@ static void test_rm_imm(I80386_MNEM* mnem) {
 	}
 	else {
 		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
+		if (!fetch_byte(mnem, &imm)) {
+			return;
+		}
 		modrm_get_token8(mnem, mnem->line);
 		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
@@ -1593,77 +916,11 @@ static void test_rm_imm(I80386_MNEM* mnem) {
 }
 static void test_rm_reg(I80386_MNEM* mnem) {
 	/* test r/m, reg (84/85) b1000010W */
-	fetch_modrm(mnem);
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "test", 4, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			const char* reg = reg32_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token32(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 3, mnem->modrm.reg, 4);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token32(mnem, mnem->line);
-			}
-		}
-		else {
-			const char* reg = reg16_mnem[mnem->modrm.reg];
-			if (D) {
-				modrm_get_token16(mnem, mnem->line);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-			}
-			else {
-				add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 2);
-				add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-				modrm_get_token16(mnem, mnem->line);
-			}
-		}
-	}
-	else {
-		const char* reg = reg8_mnem[mnem->modrm.reg];
-		if (D) {
-			modrm_get_token8(mnem, mnem->line);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-		}
-		else {
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, reg, 2, mnem->modrm.reg, 1);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			modrm_get_token8(mnem, mnem->line);
-		}
-	}
+	opcode_rm_reg(mnem, "test");
 }
 static void test_accum_imm(I80386_MNEM* mnem) {
 	/* test AL/AX, imm (A8/A9) b1010100W */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "test", 4, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "eax", 3, 0, 4);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
-		}
-		else {
-			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
-			add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "ax", 2, 0, 2);
-			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
-		}
-	}
-	else {
-		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
-		add_token(mnem->line, MNEM_TOKEN_GENERAL_REGISTER, "al", 2, 0, 1);
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
-	}
+	opcode_accum_imm(mnem, "test");
 }
 
 static void daa(I80386_MNEM* mnem) {
@@ -1685,14 +942,18 @@ static void aas(I80386_MNEM* mnem) {
 static void aam(I80386_MNEM* mnem) {
 	/* ASCII Adjust for Multiply (D4 0A) b11010100 00001010 */
 	uint8_t divisor = 0;
-	fetch_byte(mnem, &divisor); /* undocumented operand; normally 0x0A */
+	if (!fetch_byte(mnem, &divisor)) { /* undocumented operand; normally 0x0A */
+		return;
+	}
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "aam", 3, 0, 0);
 	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, divisor, 1);
 }
 static void aad(I80386_MNEM* mnem) {
 	/* ASCII Adjust for Division (D5 0A) b11010101 00001010 */
 	uint8_t divisor = 0;
-	fetch_byte(mnem, &divisor); /* undocumented operand; normally 0x0A */
+	if (!fetch_byte(mnem, &divisor)) { /* undocumented operand; normally 0x0A */
+		return;
+	}
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "aad", 3, 0, 0);
 	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, divisor, 1);
 }
@@ -1759,7 +1020,9 @@ static void push_rm(I80386_MNEM* mnem) {
 }
 static void pop_rm(I80386_MNEM* mnem) {
 	/* Pop Ev (8F) b10001111 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "pop", 3, 0, 0);
 	if (mnem->operand_size) {
 		modrm_get_token32(mnem, mnem->line);
@@ -1823,8 +1086,12 @@ static void enter(I80386_MNEM* mnem) {
 	/* enter procedure (C8) b11001000 */
 	uint16_t op1 = 0;
 	uint8_t op2 = 0;
-	fetch_word(mnem, &op1);
-	fetch_byte(mnem, &op2);
+	if (!fetch_word(mnem, &op1)) {
+		return;
+	}
+	if (!fetch_byte(mnem, &op2)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "enter", 5, 0, 0);
 	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, op1, 2);
@@ -1863,7 +1130,9 @@ static void xchg_accum_reg(I80386_MNEM* mnem) {
 }
 static void xchg_rm_reg(I80386_MNEM* mnem) {
 	/* xchg R/M, reg16 (86/87) b1000011W */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "xchg", 4, 0, 0);
 	if (W) {
@@ -2003,163 +1272,35 @@ static void dec_rm(I80386_MNEM* mnem) {
 
 static void rol_rm_cl(I80386_MNEM* mnem) {
 	/* Rotate left (D0/D1/D2/D3, R/M reg = 000) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "rol", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "rol");
 }
 static void ror_rm_cl(I80386_MNEM* mnem) {
 	/* Rotate left (D0/D1/D2/D3, R/M reg = 001) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "ror", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "ror");
 }
 static void rcl_rm_cl(I80386_MNEM* mnem) {
 	/* Rotate through carry left (D0/D1/D2/D3, R/M reg = 010) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "rcl", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "rcl");
 }
 static void rcr_rm_cl(I80386_MNEM* mnem) {
 	/* Rotate through carry right (D0/D1/D2/D3, R/M reg = 011) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "rcr", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "rcr");
 }
 static void shl_rm_cl(I80386_MNEM* mnem) {
 	/* Shift left (D0/D1/D2/D3, R/M reg = 100) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "shl", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "shl");
 }
 static void shr_rm_cl(I80386_MNEM* mnem) {
 	/* Shift Logical right (D0/D1/D2/D3, R/M reg = 101) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "shr", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "shr");
 }
 static void sal_rm_cl(I80386_MNEM* mnem) {
 	/* Shift Arithmetic left (D0/D1/D2/D3, R/M reg = 110) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sal", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "sal");
 }
 static void sar_rm_cl(I80386_MNEM* mnem) {
 	/* Shift Arithmetic right (D0/D1/D2/D3, R/M reg = 111) b110100VW */
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sar", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-
-	if (VW) {
-		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "cl", 2, 0, 0);
-	}
+	opcode_shift_rm_cl(mnem, "sar");
 }
 static void shld_rm_cl(I80386_MNEM* mnem) {
 	const char* reg = NULL;
@@ -2202,177 +1343,43 @@ static void shrd_rm_cl(I80386_MNEM* mnem) {
 
 static void rol_rm_imm(I80386_MNEM* mnem) {
 	/* Rotate left (C0/C1, R/M reg = 000) b1100000W */
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "rol", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	opcode_shift_rm_imm(mnem, "rol");
 }
 static void ror_rm_imm(I80386_MNEM* mnem) {
 	/* Rotate left (C0/C1, R/M reg = 001) b1100000W */
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "ror", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	opcode_shift_rm_imm(mnem, "ror");
 }
 static void rcl_rm_imm(I80386_MNEM* mnem) {
 	/* Rotate through carry left (C0/C1, R/M reg = 010) b1100000W */
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "rcl", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	opcode_shift_rm_imm(mnem, "rcl");
 }
 static void rcr_rm_imm(I80386_MNEM* mnem) {
-	/* Rotate through carry right (C0/C1, R/M reg = 011) b1100000W */	
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "rcr", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	/* Rotate through carry right (C0/C1, R/M reg = 011) b1100000W */
+	opcode_shift_rm_imm(mnem, "rcr");
 }
 static void shl_rm_imm(I80386_MNEM* mnem) {
 	/* Shift left (C0/C1, R/M reg = 100) b1100000W */
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "shl", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	opcode_shift_rm_imm(mnem, "shl");
 }
 static void shr_rm_imm(I80386_MNEM* mnem) {
 	/* Shift Logical right (C0/C1, R/M reg = 101) b1100000W */
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "shr", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	opcode_shift_rm_imm(mnem, "shr");
 }
 static void sal_rm_imm(I80386_MNEM* mnem) {
 	/* Shift Arithmetic left (C0/C1, R/M reg = 110) b1100000W */
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sal", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	opcode_shift_rm_imm(mnem, "sal");
 }
 static void sar_rm_imm(I80386_MNEM* mnem) {
 	/* Shift Arithmetic right (C0/C1, R/M reg = 111) b1100000W */
-	uint8_t imm = 0;
-
-	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "sar", 3, 0, 0);
-	if (W) {
-		if (mnem->operand_size) {
-			modrm_get_token32(mnem, mnem->line);
-		}
-		else {
-			modrm_get_token16(mnem, mnem->line);
-		}
-	}
-	else {
-		modrm_get_token8(mnem, mnem->line);
-	}
-	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
-
-	fetch_byte(mnem, &imm);
-	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
+	opcode_shift_rm_imm(mnem, "sar");
 }
 static void shld_rm_imm(I80386_MNEM* mnem) {
 	const char* reg = NULL;
 	uint8_t imm = 0;
 
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "shld", 4, 0, 0);
 	if (W) {
@@ -2390,14 +1397,18 @@ static void shld_rm_imm(I80386_MNEM* mnem) {
 
 	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 
-	fetch_byte(mnem, &imm);
+	if (!fetch_byte(mnem, &imm)) {
+		return;
+	}
 	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
 }
 static void shrd_rm_imm(I80386_MNEM* mnem) {
 	const char* reg = NULL;
 	uint8_t imm = 0;
 
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "shrd", 4, 0, 0);
 	if (W) {
@@ -2415,14 +1426,18 @@ static void shrd_rm_imm(I80386_MNEM* mnem) {
 
 	add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 
-	fetch_byte(mnem, &imm);
+	if (!fetch_byte(mnem, &imm)) {
+		return;
+	}
 	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
 }
 
 static void jcc_short(I80386_MNEM* mnem) {
 	/* conditional jump (70-7F) b0111CCCC */
 	uint8_t disp = 0;
-	fetch_byte(mnem, &disp);
+	if (!fetch_byte(mnem, &disp)) {
+		return;
+	}
 	uint16_t offset = sign_extend8_16(disp);
 	offset += mnem->counter;
 
@@ -2452,7 +1467,9 @@ static void jcc_long(I80386_MNEM* mnem) {
 static void jmp_intra_direct(I80386_MNEM* mnem) {
 	/* Jump near (E9) b11101001 */
 	uint16_t imm = 0;
-	fetch_word(mnem, &imm);
+	if (!fetch_word(mnem, &imm)) {
+		return;
+	}
 	imm += mnem->counter;
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "jmp", 3, 0, 0);
@@ -2464,8 +1481,12 @@ static void jmp_inter_direct(I80386_MNEM* mnem) {
 	if (mnem->operand_size) {
 		uint32_t imm = 0;
 		uint16_t imm2 = 0;
-		fetch_dword(mnem, &imm);
-		fetch_word(mnem, &imm2);
+		if (!fetch_dword(mnem, &imm)) {
+			return;
+		}
+		if (!fetch_word(mnem, &imm2)) {
+			return;
+		}
 
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm2, 2);
 		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ":", 1, 0, 0);
@@ -2474,8 +1495,12 @@ static void jmp_inter_direct(I80386_MNEM* mnem) {
 	else {
 		uint16_t imm = 0;
 		uint16_t imm2 = 0;
-		fetch_word(mnem, &imm);
-		fetch_word(mnem, &imm2);
+		if (!fetch_word(mnem, &imm)) {
+			return;
+		}
+		if (!fetch_word(mnem, &imm2)) {
+			return;
+		}
 
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm2, 2);
 		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ":", 1, 0, 0);
@@ -2487,7 +1512,9 @@ static void jmp_intra_direct_short(I80386_MNEM* mnem) {
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "jmp", 3, 0, 0);
 	uint8_t imm = 0;
 	uint16_t se = 0;
-	fetch_byte(mnem, &imm);
+	if (!fetch_byte(mnem, &imm)) {
+		return;
+	}
 	se = sign_extend8_16(imm);
 	se += mnem->counter;
 
@@ -2523,14 +1550,18 @@ static void call_intra_direct(I80386_MNEM* mnem) {
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "call", 4, 0, 0);
 	if (mnem->operand_size) {
 		uint32_t imm = 0;
-		fetch_dword(mnem, &imm);
+		if (!fetch_dword(mnem, &imm)) {
+			return;
+		}
 		imm += mnem->counter;
 
 		add_token(mnem->line, MNEM_TOKEN_RELATIVE_ADDRESS, NULL, 0, (int32_t)imm, 4);
 	}
 	else {
 		uint16_t imm = 0;
-		fetch_word(mnem, &imm);
+		if (!fetch_word(mnem, &imm)) {
+			return;
+		}
 		imm += mnem->counter;
 
 		add_token(mnem->line, MNEM_TOKEN_RELATIVE_ADDRESS, NULL, 0, (int16_t)imm, 2);
@@ -2542,8 +1573,12 @@ static void call_inter_direct(I80386_MNEM* mnem) {
 	if (mnem->operand_size) {
 		uint32_t imm = 0;
 		uint16_t imm2 = 0;
-		fetch_dword(mnem, &imm);
-		fetch_word(mnem, &imm2);
+		if (!fetch_dword(mnem, &imm)) {
+			return;
+		}
+		if (!fetch_word(mnem, &imm2)) {
+			return;
+		}
 
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm2, 2);
 		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ":", 1, 0, 0);
@@ -2552,8 +1587,12 @@ static void call_inter_direct(I80386_MNEM* mnem) {
 	else {
 		uint16_t imm = 0;
 		uint16_t imm2 = 0;
-		fetch_word(mnem, &imm);
-		fetch_word(mnem, &imm2);
+		if (!fetch_word(mnem, &imm)) {
+			return;
+		}
+		if (!fetch_word(mnem, &imm2)) {
+			return;
+		}
 
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm2, 2);
 		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ":", 1, 0, 0);
@@ -2587,7 +1626,9 @@ static void call_inter_indirect(I80386_MNEM* mnem) {
 static void ret_intra_add_imm(I80386_MNEM* mnem) {
 	/* Ret imm16 (C2) b11000010 */
 	uint16_t imm = 0;
-	fetch_word(mnem, &imm);
+	if (!fetch_word(mnem, &imm)) {
+		return;
+	}
 	if (mnem->operand_size) {
 		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "retd", 4, 0, 0);
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
@@ -2609,7 +1650,9 @@ static void ret_intra(I80386_MNEM* mnem) {
 static void ret_inter_add_imm(I80386_MNEM* mnem) {
 	/* Ret imm16 (CA) b11001010 */
 	uint16_t imm = 0;
-	fetch_word(mnem, &imm);
+	if (!fetch_word(mnem, &imm)) {
+		return;
+	}
 	if (mnem->operand_size) {
 		add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "retfd", 5, 0, 0);
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
@@ -2631,21 +1674,28 @@ static void ret_inter(I80386_MNEM* mnem) {
 
 static void mov_rm_imm(I80386_MNEM* mnem) {
 	/* mov r/m, imm (C6/C7) b1100011W */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "mov", 3, 0, 0);
 	if (W) {
 		if (mnem->operand_size) {
 			modrm_get_token32(mnem, mnem->line);
 			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 			uint32_t imm = 0;
-			fetch_dword(mnem, &imm);
+			if (!fetch_dword(mnem, &imm)) {
+				return;
+			}
 			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 4);
 		}
 		else {
 			modrm_get_token32(mnem, mnem->line);
 			add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 			uint16_t imm = 0;
-			fetch_word(mnem, &imm);
+			if (!fetch_word(mnem, &imm)) {
+				return;
+			}
 			add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 2);
 		}
 	}
@@ -2653,7 +1703,9 @@ static void mov_rm_imm(I80386_MNEM* mnem) {
 		modrm_get_token32(mnem, mnem->line);
 		add_token(mnem->line, MNEM_TOKEN_OPERATOR, ",", 1, 0, 0);
 		uint8_t imm = 0;
-		fetch_byte(mnem, &imm);
+		if (!fetch_byte(mnem, &imm)) {
+			return;
+		}
 		add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
 	}
 }
@@ -2698,7 +1750,9 @@ static void mov_reg_imm(I80386_MNEM* mnem) {
 }
 static void mov_rm_reg(I80386_MNEM* mnem) {
 	/* mov r/m, reg (88/89/8A/8B) b100010DW */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "mov", 3, 0, 0);
 	if (W) {
@@ -2807,7 +1861,10 @@ static void mov_accum_mem(I80386_MNEM* mnem) {
 }
 static void mov_seg(I80386_MNEM* mnem) {
 	/* mov r/m, seg (8C/8E) b100011D0 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	const char* seg = mnem->modrm.reg < I80386_SEGMENT_COUNT ? seg_mnem[mnem->modrm.reg] : "bad:";
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "mov", 3, 0, 0);
@@ -2824,7 +1881,10 @@ static void mov_seg(I80386_MNEM* mnem) {
 }
 static void mov_cr(I80386_MNEM* mnem) {
 	/* mov Cd,Rd /r (0F 20/22) b001000D0 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	const char* reg1 = cr_mnem[mnem->modrm.reg];
 	const char* reg2 = reg32_mnem[mnem->modrm.rm];
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "mov", 3, 0, 0);
@@ -2841,7 +1901,10 @@ static void mov_cr(I80386_MNEM* mnem) {
 }
 static void mov_dr(I80386_MNEM* mnem) {
 	/* mov Dd,Rd /r (0F 21/23) b001000D1 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	const char* reg1 = dr_mnem[mnem->modrm.reg];
 	const char* reg2 = reg32_mnem[mnem->modrm.rm];
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "mov", 3, 0, 0);
@@ -2858,7 +1921,10 @@ static void mov_dr(I80386_MNEM* mnem) {
 }
 static void mov_tr(I80386_MNEM* mnem) {
 	/* mov Td,Rd /r (0F 24/26) b001001D0 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	const char* reg1 = tr_mnem[mnem->modrm.reg];
 	const char* reg2 = reg32_mnem[mnem->modrm.rm];
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "mov", 3, 0, 0);
@@ -2875,7 +1941,10 @@ static void mov_tr(I80386_MNEM* mnem) {
 }
 static void movzx(I80386_MNEM* mnem) {
 	/* Move with zero-extend - (0F B6/B7 /r) b */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	const char* reg = NULL;
 	
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "movzx", 5, 0, 0);
@@ -2900,7 +1969,10 @@ static void movzx(I80386_MNEM* mnem) {
 }
 static void movsx(I80386_MNEM* mnem) {
 	/* Move with sign-extend - (0F BE/BF /r) b */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	const char* reg = NULL;
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "movsx", 5, 0, 0);
@@ -2926,7 +1998,10 @@ static void movsx(I80386_MNEM* mnem) {
 
 static void lea(I80386_MNEM* mnem) {
 	/* lea reg16, mem (8D) b10001101 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
+
 	const char* reg = NULL;
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "lea", 3, 0, 0);
@@ -3010,7 +2085,9 @@ static void imul_reg_rm_imm(I80386_MNEM* mnem) {
 	uint32_t disp = 0;
 	const char* reg = NULL;
 	int operand_size = 0;
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	if (S) {
 		uint8_t imm2 = 0;
@@ -3287,7 +2364,9 @@ static void outs(I80386_MNEM* mnem) {
 
 static void les(I80386_MNEM* mnem) {
 	/* les (C4) b11000100 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "les", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3305,7 +2384,9 @@ static void les(I80386_MNEM* mnem) {
 }
 static void lds(I80386_MNEM* mnem) {
 	/* lds (C5) b11000101 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "lds", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3323,7 +2404,9 @@ static void lds(I80386_MNEM* mnem) {
 }
 static void lss(I80386_MNEM* mnem) {
 	/* lss (0F B2) b10110010 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "lss", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3341,7 +2424,9 @@ static void lss(I80386_MNEM* mnem) {
 }
 static void lfs(I80386_MNEM* mnem) {
 	/* lfs (0F B4) b10110100 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "lfs", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3359,7 +2444,9 @@ static void lfs(I80386_MNEM* mnem) {
 }
 static void lgs(I80386_MNEM* mnem) {
 	/* lgs (0F B5) b10110101 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "lgs", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3388,7 +2475,9 @@ static void xlat(I80386_MNEM* mnem) {
 
 static void esc(I80386_MNEM* mnem) {
 	/* esc (D8-DF R/M reg = XXX) b11010REG */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "esc", 3, 0, 0);
 	modrm_get_token16(mnem, mnem->line);
@@ -3398,7 +2487,9 @@ static void loopnz(I80386_MNEM* mnem) {
 	/* loop while not zero (E0) b1110000Z */
 	uint8_t disp = 0;
 	uint16_t se = 0;
-	fetch_byte(mnem, &disp);
+	if (!fetch_byte(mnem, &disp)) {
+		return;
+	}
 	se = sign_extend8_16(disp) + mnem->counter;
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "loopne", 6, 0, 0);
@@ -3408,7 +2499,9 @@ static void loopz(I80386_MNEM* mnem) {
 	/* loop while zero (E1) b1110000Z */
 	uint8_t disp = 0;
 	uint16_t se = 0;
-	fetch_byte(mnem, &disp);
+	if (!fetch_byte(mnem, &disp)) {
+		return;
+	}
 	se = sign_extend8_16(disp) + mnem->counter;
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "loope", 5, 0, 0);
@@ -3418,7 +2511,9 @@ static void loop(I80386_MNEM* mnem) {
 	/* loop if CX not zero (E2) b11100010 */
 	uint8_t disp = 0;
 	uint16_t se = 0;
-	fetch_byte(mnem, &disp);
+	if (!fetch_byte(mnem, &disp)) {
+		return;
+	}
 	se = sign_extend8_16(disp) + mnem->counter;
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "loop", 4, 0, 0);
@@ -3428,7 +2523,9 @@ static void jcxz(I80386_MNEM* mnem) {
 	/* jump if CX zero (E3) b11100011 */
 	uint8_t disp = 0;
 	uint16_t se = 0;
-	fetch_byte(mnem, &disp);
+	if (!fetch_byte(mnem, &disp)) {
+		return;
+	}
 	se = sign_extend8_16(disp) + mnem->counter;
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "jcxz", 4, 0, 0);
@@ -3438,7 +2535,9 @@ static void jcxz(I80386_MNEM* mnem) {
 static void in_accum_imm(I80386_MNEM* mnem) {
 	/* in AL/AX/EAX, imm - (E4/E5) b0000000W */
 	uint8_t imm = 0;
-	fetch_byte(mnem, &imm);
+	if (!fetch_byte(mnem, &imm)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "in", 2, 0, 0);
 	if (W) {
@@ -3458,7 +2557,9 @@ static void in_accum_imm(I80386_MNEM* mnem) {
 static void out_accum_imm(I80386_MNEM* mnem) {
 	/* out imm, AL/AX/EAX - (E6/E7) b0000000W  */
 	uint8_t imm = 0;
-	fetch_byte(mnem, &imm);
+	if (!fetch_byte(mnem, &imm)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "out", 3, 0, 0);
 	add_token(mnem->line, MNEM_TOKEN_IMMEDIATE, NULL, 0, imm, 1);
@@ -3514,7 +2615,9 @@ static void int_(I80386_MNEM* mnem) {
 	/* interrupt CD b11001101 */
 	uint8_t type = 0;
  	if (mnem->opcode & 0x1) {
-		fetch_byte(mnem, &type);
+		if (!fetch_byte(mnem, &type)) {
+			return;
+		}
 	}
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "int", 3, 0, 0);
 	add_token(mnem->line, MNEM_TOKEN_NUMBER, NULL, 0, type, 1);
@@ -3621,7 +2724,9 @@ static void setcc(I80386_MNEM* mnem) {
 }
 static void bt(I80386_MNEM* mnem) {
 	/* bit test (Ev) (0F A3) b10100011 */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "bt", 2, 0, 0);
 	if (mnem->operand_size) {
@@ -3636,7 +2741,9 @@ static void bt(I80386_MNEM* mnem) {
 	}
 }
 static void bts(I80386_MNEM* mnem) {
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "bts", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3651,7 +2758,9 @@ static void bts(I80386_MNEM* mnem) {
 	}
 }
 static void btr(I80386_MNEM* mnem) {
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "btr", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3666,7 +2775,9 @@ static void btr(I80386_MNEM* mnem) {
 	}
 }
 static void btc(I80386_MNEM* mnem) {
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "btc", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3681,7 +2792,9 @@ static void btc(I80386_MNEM* mnem) {
 	}
 }
 static void bsf(I80386_MNEM* mnem) {
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "bsf", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3696,7 +2809,9 @@ static void bsf(I80386_MNEM* mnem) {
 	}
 }
 static void bsr(I80386_MNEM* mnem) {
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 
 	add_token(mnem->line, MNEM_TOKEN_MNEMONIC, "bsr", 3, 0, 0);
 	if (mnem->operand_size) {
@@ -3717,35 +2832,47 @@ static int rep(I80386_MNEM* mnem) {
 	mnem->internal_flags |= INTERNAL_FLAG_F1;     /* Set F1 */
 	mnem->internal_flags &= ~INTERNAL_FLAG_F1Z;   /* Clr F1Z */
 	mnem->internal_flags |= (mnem->opcode & 0x1); /* Set F1Z */
-	fetch_byte(mnem, &mnem->opcode);
+	if (!fetch_byte(mnem, &mnem->opcode)) {
+		return I80386_DECODE_UNDEFINED;
+	}
 	return I80386_DECODE_REQ_CYCLE;
 }
 static int segment_override(I80386_MNEM* mnem) {
 	/* (26/2E/36/3E) b001SR110 */
 	mnem->segment_prefix = SR;
-	fetch_byte(mnem, &mnem->opcode);
+	if (!fetch_byte(mnem, &mnem->opcode)) {
+		return I80386_DECODE_UNDEFINED;
+	}
 	return I80386_DECODE_REQ_CYCLE;
 }
 static int segment_override_extended(I80386_MNEM* mnem) {
 	/* (64/65) b01100SRX */
 	mnem->segment_prefix = mnem->opcode & 0x7;
-	fetch_byte(mnem, &mnem->opcode);
+	if (!fetch_byte(mnem, &mnem->opcode)) {
+		return I80386_DECODE_UNDEFINED;
+	}
 	return I80386_DECODE_REQ_CYCLE;
 }
 static int lock(I80386_MNEM* mnem) {
 	/* lock the bus (F0/F1) b11110000 */
 	add_token(mnem->line, MNEM_TOKEN_PREFIX, "lock", 4, 0, 0);
-	fetch_byte(mnem, &mnem->opcode);
+	if (!fetch_byte(mnem, &mnem->opcode)) {
+		return I80386_DECODE_UNDEFINED;
+	}
 	return I80386_DECODE_REQ_CYCLE;
 }
 static int operand_size(I80386_MNEM* mnem) {
 	mnem->operand_size ^= 1;
-	fetch_byte(mnem, &mnem->opcode);
+	if (!fetch_byte(mnem, &mnem->opcode)) {
+		return I80386_DECODE_UNDEFINED;
+	}
 	return I80386_DECODE_REQ_CYCLE;
 }
 static int address_size(I80386_MNEM* mnem) {
 	mnem->addressing_size ^= 1;
-	fetch_byte(mnem, &mnem->opcode);
+	if (!fetch_byte(mnem, &mnem->opcode)) {
+		return I80386_DECODE_UNDEFINED;
+	}
 	return I80386_DECODE_REQ_CYCLE;
 }
 
@@ -3773,13 +2900,17 @@ static void i80386_next(I80386_MNEM* mnem, uint32_t offset) {
 }
 static void i80386_fetch(I80386_MNEM* mnem, uint32_t offset) {
 	i80386_next(mnem, offset);
-	fetch_byte(mnem, &mnem->opcode);
+	if (!fetch_byte(mnem, &mnem->opcode)) {
+		return;
+	}
 }
 
 /* Decode */
 static void i80386_decode_opcode_80(I80386_MNEM* mnem) {
 	/* 0x80 - 0x83 b100000SW */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	switch (mnem->modrm.reg) {
 		case 0b000: /* ADD */
 			add_rm_imm(mnem);
@@ -3809,7 +2940,9 @@ static void i80386_decode_opcode_80(I80386_MNEM* mnem) {
 }
 static void i80386_decode_opcode_c0(I80386_MNEM* mnem) {
 	/* 0xC0 - 0xC1 b1100000W (Shift Immed group 2) */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	switch (mnem->modrm.reg) {
 		case 0b000:
 			rol_rm_imm(mnem);
@@ -3839,7 +2972,9 @@ static void i80386_decode_opcode_c0(I80386_MNEM* mnem) {
 }
 static void i80386_decode_opcode_d0(I80386_MNEM* mnem) {
 	/* 0xD0 - 0xD3 b110100VW */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	switch (mnem->modrm.reg) {
 		case 0b000:
 			rol_rm_cl(mnem);
@@ -3869,7 +3004,9 @@ static void i80386_decode_opcode_d0(I80386_MNEM* mnem) {
 }
 static void i80386_decode_opcode_f6(I80386_MNEM* mnem) {
 	/* F6/F7 b1111011W */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	switch (mnem->modrm.reg) {
 		case 0b000:
 			test_rm_imm(mnem);
@@ -3899,7 +3036,9 @@ static void i80386_decode_opcode_f6(I80386_MNEM* mnem) {
 }
 static void i80386_decode_opcode_fe(I80386_MNEM* mnem) {
 	/* FE b1111111W */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	switch (mnem->modrm.reg) {
 		case 0b000:
 			inc_rm(mnem);
@@ -3920,7 +3059,9 @@ static void i80386_decode_opcode_fe(I80386_MNEM* mnem) {
 }
 static void i80386_decode_opcode_ff(I80386_MNEM* mnem) {
 	/* FF b1111111W */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	switch (mnem->modrm.reg) {
 		case 0b000:
 			inc_rm(mnem);
@@ -3950,7 +3091,9 @@ static void i80386_decode_opcode_ff(I80386_MNEM* mnem) {
 }
 static void i80386_decode_opcode_0f00(I80386_MNEM* cpu) {
 	/* 0F 00 b00000000 (Group 6) */
-	fetch_modrm(cpu);
+	if (!fetch_modrm(cpu)) {
+		return;
+	}
 	switch (cpu->modrm.reg) {
 		case 0b000:
 			sldt(cpu);
@@ -3974,7 +3117,9 @@ static void i80386_decode_opcode_0f00(I80386_MNEM* cpu) {
 }
 static void i80386_decode_opcode_0f01(I80386_MNEM* mnem) {
 	/* 0F 01 b00000001 (Group 7) */
-	fetch_modrm(mnem);
+	if (!fetch_modrm(mnem)) {
+		return;
+	}
 	switch (mnem->modrm.reg) {
 		case 0b000:
 			sgdt(mnem);
