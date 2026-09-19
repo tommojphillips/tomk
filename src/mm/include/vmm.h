@@ -48,8 +48,14 @@ void* vmm_alloc_contiguous(vmm_t* vmm, size_t count);
  Returns: pointer if successfull, otherwise NULL */
 void* vmm_reserve(vmm_t* vmm, size_t count);
 
-/* Free virtual pages backed or non-backed physical pages
- virt: Virtual page address
+/* Free non-backed virtual pages
+ virt: Virtual page frame
+ count: requested page count 
+ Returns: pointer if successfull, otherwise NULL */
+int vmm_unreserve(vmm_t* vmm, void* virt, size_t count);
+
+/* Free backed virtual pages
+ virt: Virtual page frame
  count: requested page count */
 void vmm_free(vmm_t* vmm, void* virt, size_t count);
 
@@ -74,11 +80,11 @@ size_t vmm_get_usable(vmm_t* vmm);
 size_t vmm_get_largest_run(vmm_t* vmm);
 
 /* Mark virtual page(s) free
- virt: Virtual page address */
+ virt: Virtual page frame */
 int vmm_mark_free(vmm_t* vmm, uintptr_t virt, size_t count);
 
 /* Mark virtual page(s) used
- virt: Virtual page address */
+ virt: Virtual page frame */
 int vmm_mark_used(vmm_t* vmm, uintptr_t virt, size_t count);
 
 #endif

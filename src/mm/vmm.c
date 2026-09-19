@@ -56,10 +56,11 @@ void vmm_init(vmm_t* vmm, uintptr_t base, uintptr_t end, vmm_alloc_fn_t alloc) {
 }
 void vmm_destroy(vmm_t* vmm, vmm_free_fn_t free) {
     assert(vmm != NULL);
+    assert(vmm->bitmap != NULL);
     assert(free != NULL);
-    
+
     /* Unmap and free each physical page independently */
-    size_t len = vmm->bitmap_size / sizeof(uint32_t);    
+    size_t len = vmm->bitmap_size / sizeof(uint32_t);
     for (size_t i = 0; i < len; i++) {
         uint32_t bits = vmm->bitmap[i];
 
@@ -76,15 +77,11 @@ void vmm_destroy(vmm_t* vmm, vmm_free_fn_t free) {
 
             uintptr_t virt_addr = vmm->base + TO_ADDR(page);
             uintptr_t phys_addr = pg_virt2phys(virt_addr);
-
-            if (!phys_addr) {
-                continue;
+            if (phys_addr != 0) {                
+                pg_unmap(virt_addr, 1);
+                pmm_free(phys_addr, 1);    
             }
 
-            pg_unmap(virt_addr, 1);
-            pg_invalidate(virt_addr, 1);
-            pmm_free(phys_addr, 1);
-            
             vmm->bitmap[i] &= ~(1U << bit);
         }
     }
@@ -169,51 +166,54 @@ void* vmm_alloc_contiguous(vmm_t* vmm, size_t count) {
     return virt;
 }
 
-void vmm_free(vmm_t* vmm, void* virt, size_t count) {
+int vmm_unreserve(vmm_t* vmm, void* virt, size_t count) {
     /* Contiguous virtual addresses; Arbitrary physical addresses */
     assert(vmm != NULL);
 
     if (virt == NULL) {
-        return;
+        return 1;
     }
 
     if (count == 0) {
-        return;
+        return 1;
     }
 
     if ((uintptr_t)virt < vmm->base || (uintptr_t)virt >= vmm->end) {
-        kprint("[VMM] Address out of bounds error: %8.8X\n", (uintptr_t)virt);
-        return;
-    }
-
-    uintptr_t page = TO_ADDR((uintptr_t)virt - vmm->base);
-
-    if (count > vmm->total_pages - page) {
         kprint("[VMM] Out of bounds error: %8.8X\n", (uintptr_t)virt);
-        return;
+        return 0;
     }
 
     if ((uintptr_t)virt & (PAGE_SIZE - 1)) {
         kprint("[VMM] Mis-aligned page error: %8.8X\n", (uintptr_t)virt);
-        return;
+        return 0;
     }
 
-    /* Unmap and free each physical page independently */
+    /* Unreserve pages */
     for (size_t i = 0; i < count; i++) {
         uintptr_t virt_addr = (uintptr_t)virt + TO_ADDR(i);
         vmm_clear(vmm, virt_addr);
-        
-        uintptr_t phys_addr = pg_virt2phys(virt_addr);
-        if (phys_addr != 0) {
-            pmm_free(phys_addr, 1);
-            pg_unmap(virt_addr, 1);
-            pg_invalidate(virt_addr, 1);
-        }
     }
 
     /* Bookkeeping */
     vmm->free_pages += count;
     vmm->used_pages -= count;
+
+    return 1;
+}
+void vmm_free(vmm_t* vmm, void* virt, size_t count) {
+    /* Contiguous virtual addresses; Arbitrary physical addresses */
+
+    vmm_unreserve(vmm, virt, count);
+
+    /* Unmap and free each physical page independently */
+    for (size_t i = 0; i < count; i++) {
+        uintptr_t virt_addr = (uintptr_t)virt + TO_ADDR(i);        
+        uintptr_t phys_addr = pg_virt2phys(virt_addr);
+        if (phys_addr != 0) {
+            pg_unmap(virt_addr, 1);
+            pmm_free(phys_addr, 1);
+        }
+    }
 }
 
 int vmm_mark_free(vmm_t* vmm, uintptr_t virt, size_t size) {
@@ -305,11 +305,11 @@ static void rollback_allocations(vmm_t* vmm, uintptr_t virt, size_t count) {
     for (size_t i = 0; i < count; i++) {
         uintptr_t virt_addr =  virt + TO_ADDR(i);
         uintptr_t phys_addr = pg_virt2phys(virt_addr);
-
-        pmm_free(phys_addr, 1);
+        if (phys_addr != 0) {
+            pg_unmap(virt_addr, 1);
+            pmm_free(phys_addr, 1);
+        }
         vmm_clear(vmm, virt_addr);
-        pg_unmap(virt_addr, 1);
-        pg_invalidate(virt_addr, 1);
     }
 }
 static uintptr_t vmm_find_contiguous_pages(vmm_t* vmm, size_t count) {
