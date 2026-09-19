@@ -10,7 +10,7 @@
 
 #include <kdprint.h>
 #include <kernel.h>
-#include <linkvars.h>
+#include <scheduler.h>
 #include <mminit.h>
 
 extern void tty_init(void); /* driver/tty.c */
@@ -32,10 +32,17 @@ void kmain(void) {
 #endif
 
 	/* Init memory stack */
-	mm_init();
+	mminit();
+
+	/* Init scheduler */
+	scheduler_init();
+
+	/* Spin up kshell process */
+	kprint("Starting KSHELL...\n");
+	scheduler_load_kprocess((uintptr_t)kshell);
 	
-	/* Launch kshell (Kernel Test Shell) */
-	kshell();
+	/* Unload ourself */
+	scheduler_unload_kprocess(scheduler_get_current_process());
 
 	/* We shouldnt get here. Hang the system */
 	khang();

@@ -56,6 +56,16 @@ extern uintptr_t pg_virt2phys(uintptr_t virt);
 /* paging-static: Change virtual address change access permissions (RW/US bits) */
 extern void pg_chgpriv(uintptr_t virt, uint32_t flags, size_t count);
 
+/* paging-dynamic: */
+int pgd_map(uintptr_t pd, uintptr_t virt, uintptr_t phys, uint32_t flags, size_t count);
 
+/* paging-dynamic: */
+void pgd_unmap(uintptr_t pd, uintptr_t virt, size_t count);
+
+/* paging-dynamic: */
+uintptr_t pgd_create_pd(void);
+
+/* paging-dynamic: */
+void pgd_destroy_pd(uintptr_t pd);
 
 #endif
