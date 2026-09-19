@@ -14,7 +14,7 @@ CC      := i686-elf-gcc
 AS      := nasm
 AR      := i686-elf-ar
 LD      := i686-elf-ld
-OBJCOPY := objcopy
+OBJCOPY := i686-elf-objcopy
 OBJDUMP := i686-elf-objdump
 
 # ------------------------------------------------------------
@@ -185,6 +185,7 @@ $(foreach module,$(MODULES),$(eval $(call MODULE_library_rule,$(module))))
 
 $(OUT_LINKER): $(IN_LINKER) $(OBJ_DIR)
 	@echo Creating Linker...
+	@echo $@
 	@$(CC) -E -P -x c $(IN_LINKER) \
 		$(INCLUDES) \
 		-o $(OUT_LINKER) \
