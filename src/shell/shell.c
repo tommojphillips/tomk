@@ -11,12 +11,14 @@
 #include <vmm.h>
 #include <kalloc.h>
 #include <kheap.h>
+#include <kmalloc.h>
 #include <ps2.h>
 #include <tty.h>
 #include <uart.h>
 #include <paging.h>
 #include <align.h>
 #include <i86.h>
+#include <scheduler.h>
 
 #include <kdprint.h>
 #include <kernel.h>
@@ -32,13 +34,20 @@ static int kshell_command_mem(void* userparam);
 static int kshell_command_ver(void* userparam);
 static int kshell_command_input_print(void* userparam);
 static int kshell_command_reboot(void* userparam);
-static int kshell_command_alloctest(void* userparam);
+static int kshell_command_alloctestk(void* userparam);
+static int kshell_command_alloctestu(void* userparam);
 static int kshell_command_get_cpu_state(void* userparam);
 static int kshell_command_help(void* userparam);
+static int kshell_command_pagetables(void* userparam);
+static int kshell_command_proc_list(void* userparam);
+static int kshell_command_proc_kill(void* userparam);
+static int kshell_command_proc_fork(void* userparam);
 
-static void print_memory_stats(void);
+static void print_memory_stats(int c);
 static void print_input(void);
-static void alloctest(void);
+static void alloctestk(void);
+static void alloctestu(void);
+static void print_paging(void);
 
 static kshell_command_t kshell_commands[] = {
 	{ "help", kshell_command_help },
@@ -48,8 +57,13 @@ static kshell_command_t kshell_commands[] = {
 	{ "ver", kshell_command_ver },
 	{ "inp", kshell_command_input_print },
 	{ "reboot", kshell_command_reboot },
-	{ "alloctest", kshell_command_alloctest },
+	{ "alloctestk", kshell_command_alloctestk },
+	{ "alloctestu", kshell_command_alloctestu },
 	{ "getstate", kshell_command_get_cpu_state },
+	{ "pagetables", kshell_command_pagetables },
+	{ "procls", kshell_command_proc_list },
+	{ "prockill", kshell_command_proc_kill },
+	{ "procfork", kshell_command_proc_fork },
 };
 
 void kshell(void) {
@@ -63,6 +77,8 @@ void kshell(void) {
 	while (1) {
 		char sc = EOF;
 		char ch = EOF;
+
+		haltwait();
 
 		sc = (char)ps2_getscancode();
 		if (sc != EOF) {
@@ -217,12 +233,12 @@ static int kshell_command_echo(void* userparam) {
 static int kshell_command_mem(void* userparam) {
 	(void)userparam;
 	kdprint("MEMORY\n");
-	print_memory_stats();
+	print_memory_stats(0);
 	return 0; /* Success */
 }
 static int kshell_command_ver(void* userparam) {
 	(void)userparam;
-	kprint("TOMK v%d.%d\n", kver_major, kver_minor);
+	kprint("TOMK v0.1\nKSHELL v0.1\n");
 	return 0; /* Success */
 }
 static int kshell_command_input_print(void* userparam) {
@@ -237,10 +253,16 @@ static int kshell_command_reboot(void* userparam) {
 	ps2_cpu_reset();
 	return 0; /* Success */
 }
-static int kshell_command_alloctest(void* userparam) {
+static int kshell_command_alloctestk(void* userparam) {
 	(void)userparam;
 	kdprint("ALLOC TEST\n");
-	alloctest();
+	alloctestk();
+	return 0; /* Success */
+}
+static int kshell_command_alloctestu(void* userparam) {
+	(void)userparam;
+	kdprint("ALLOC TEST\n");
+	alloctestu();
 	return 0; /* Success */
 }
 static int kshell_command_get_cpu_state(void* userparam) {
@@ -265,33 +287,65 @@ static int kshell_command_help(void* userparam) {
 
 	return 0; /* Success */
 }
+static int kshell_command_pagetables(void* userparam) {
+	(void)userparam;
+	print_paging();
+	return 0; /* Success */
+}
+static int kshell_command_proc_list(void* userparam) {
+	(void)userparam;
+	process_t* head = scheduler_get_head();
+	for (process_t* proc = head; proc != NULL; proc = proc->next) {
+		kprintf("proc%u\n", proc->id);
+	}
+	return 0; /* Success */
+}
+static int kshell_command_proc_kill(void* userparam) {
+	(void)userparam;
 
-static void print_memory_stats(void) {	
-	uintptr_t ka_base = kinit_alloc_get_base();
-	uintptr_t ka_next = kinit_alloc_get_next();
-	size_t ka_limit = ALIGN(size_t, kinit_alloc_get_limit(), PAGE_SIZE);
-	size_t ka_size = ALIGN(size_t, (ka_next - ka_base), PAGE_SIZE);
-	
+	unsigned int id = ((char*)userparam)[0] - '0';
+	process_t* head = scheduler_get_head();
+	for (process_t* proc = head; proc != NULL; proc = proc->next) {
+		if (proc->id == id) {
+			scheduler_unload_kprocess(proc);
+			return 0; /* Success */
+		}
+	}
+	return 1; /* Failure */
+}
+static int kshell_command_proc_fork(void* userparam) {
+	(void)userparam;
+
+	unsigned int id = ((char*)userparam)[0] - '0';
+	process_t* head = scheduler_get_head();
+	for (process_t* proc = head; proc != NULL; proc = proc->next) {
+		if (proc->id == id) {
+			scheduler_load_kprocess(proc->frame.eip);
+			return 0; /* Success */
+		}
+	}
+	return 1; /* Failure */
+}
+
+static void print_memory_stats(int c) {
 	size_t pm_usable = pmm_get_usable();
 	size_t pm_used = pmm_get_used();
 	size_t pm_free = pmm_get_free();
 	
-	size_t vm_usable = kheap_get_usable();
-	size_t vm_used = kheap_get_used();
-	size_t vm_free = kheap_get_free();
-	
-	size_t ka_usable = PAGE_COUNT(ka_limit);
-	size_t ka_used = PAGE_COUNT(ka_size);
-	size_t ka_free = ka_usable - ka_used;
-	
-	size_t st_usable = PAGE_COUNT((size_t)&kstack_top - (size_t)&kstack_base);
-	size_t st_used = PAGE_COUNT((size_t)&kstack_top - (size_t)getesp() + (PAGE_SIZE-1));
-	size_t st_free = st_usable - st_used;
-
-	kprint("\nMARK     |    KINIT |      PMM |   KSTACK |    KHEAP\n");
-	kprint("usable   | %8u | %8u | %8u | %8u\n", ka_usable, pm_usable, st_usable, vm_usable);
-	kprint("used     | %8u | %8u | %8u | %8u\n", ka_used, pm_used, st_used, vm_used);
-	kprint("free     | %8u | %8u | %8u | %8u\n", ka_free, pm_free, st_free, vm_free);
+	kprint("\n       |    Physical Memory |\n");
+	switch (c) {
+		case 0: /* pages */		
+		kprint("usable | %18u pages |\n", pm_usable);
+		kprint("used   | %18u pages |\n", pm_used);
+		kprint("free   | %18u pages |\n", pm_free);
+		break;
+		
+		case 1: /* kb */
+		kprint("usable | %15u kb |\n", TO_ADDR(pm_usable) / 1024);
+		kprint("used   | %15u kb |\n", TO_ADDR(pm_used) / 1024);
+		kprint("free   | %15u kb |\n", TO_ADDR(pm_free) / 1024);
+		break;
+	}
 }
 static void print_input(void) {
 	size_t x, y;
@@ -320,9 +374,9 @@ static void print_input(void) {
 		}
 	}
 }
-static void alloctest(void) {
-	print_memory_stats();
-	kprint("press any key to allocate all memory\n");
+static void alloctestk(void) {
+	print_memory_stats(0);
+	kprint("press any key to allocate all kernel memory\n");
 	while (getchar() == EOF);
 
 	void* ptrs[8192] = { 0 };
@@ -337,8 +391,8 @@ static void alloctest(void) {
 		}
 	}
 
-	print_memory_stats();
-	kprint("press any key to free all memory\n");
+	print_memory_stats(0);
+	kprint("press any key to free all kernel memory\n");
 	while (getchar() == EOF);
 	
 	kprint("freeing....\n");
@@ -346,5 +400,90 @@ static void alloctest(void) {
 		kfree(ptrs[i]);
 	}
 
-	print_memory_stats();
+	print_memory_stats(0);
+}
+static void alloctestu(void) {
+	print_memory_stats(0);
+	kprint("press any key to allocate all user memory\n");
+	while (getchar() == EOF);
+
+	void* ptrs[8192] = { 0 };
+	kprint("allocating....\n");
+	for (size_t i = 0; i < (sizeof(ptrs) / sizeof(ptrs[0])); i++) {
+		ptrs[i] = pmalloc(0x40000);
+		if (ptrs[i]) {
+			memset(ptrs[i], 0, 0x40000);
+		}
+		else {
+			break;
+		}
+	}
+
+	print_memory_stats(0);
+	kprint("press any key to free all user memory\n");
+	while (getchar() == EOF);
+	
+	kprint("freeing....\n");
+	for (size_t i = 0; i < (sizeof(ptrs) / sizeof(ptrs[0])); i++) {
+		pfree(ptrs[i]);
+	}
+
+	print_memory_stats(0);
+}
+
+#define KB ((uintptr_t)1024)
+#define MB (KB * 1024)
+#define GB (MB * 1024)
+
+#define PD_VIRT() ((uint32_t*)0xFFFFF000)
+#define PT_VIRT(pd_idx) ((uint32_t*)(0xFFC00000 + ((pd_idx) << 12)))
+
+static void print_paging(void) {
+	/* PD are valid through the recursive mapping */
+	uint32_t* pdv = (uint32_t*)0xFFFFF000;
+
+	for (int i = 0; i < 1023; i++) {
+		if (pdv[i] == 0) {
+			continue;
+		}
+
+		/* PT are valid through the recursive mapping */
+		uint32_t* ptv = (uint32_t*)(0xFFC00000 + ((uintptr_t)i << 12));
+
+		int start = 0;
+		int mapped = (ptv[0] != 0);
+
+		for (int j = 1; j <= 1024; j++) {
+			int next_mapped;
+
+			if (j < 1024) {
+				next_mapped = (ptv[j] != 0);
+			}
+			else {
+				next_mapped = !mapped;
+			}
+
+			if (next_mapped == mapped) {
+				continue;
+			}
+
+			if (!mapped) {
+				start = j;
+				mapped = next_mapped;
+				continue;
+			}
+
+			uintptr_t virt_start = ((uintptr_t)i << 22) + ((uintptr_t)start << 12);
+			uintptr_t virt_end = ((uintptr_t)i << 22) + ((uintptr_t)j << 12) - 1;
+			uintptr_t phys_start = (uintptr_t)(ptv[start] & 0xFFFFF000);
+			uintptr_t phys_end = (uintptr_t)((ptv[j-1] & 0xFFFFF000) + (PAGE_SIZE-1));
+			uint32_t flags = ptv[start] & 0xFFF;
+			size_t size = virt_end - virt_start + 1;
+
+			kprint("%08X-%08X -> %08X-%08X: %-10s %4u KB\n", virt_start, virt_end, phys_start, phys_end, (flags & PTE_RW) ? "RW" : "RO", size / KB);
+
+			start = j;
+			mapped = next_mapped;
+		}
+	}
 }
