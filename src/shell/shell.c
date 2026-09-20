@@ -36,7 +36,6 @@ static int kshell_command_input_print(void* userparam);
 static int kshell_command_reboot(void* userparam);
 static int kshell_command_alloctestk(void* userparam);
 static int kshell_command_alloctestu(void* userparam);
-static int kshell_command_get_cpu_state(void* userparam);
 static int kshell_command_help(void* userparam);
 static int kshell_command_pagetables(void* userparam);
 static int kshell_command_proc_list(void* userparam);
@@ -59,7 +58,6 @@ static kshell_command_t kshell_commands[] = {
 	{ "reboot", kshell_command_reboot },
 	{ "alloctestk", kshell_command_alloctestk },
 	{ "alloctestu", kshell_command_alloctestu },
-	{ "getstate", kshell_command_get_cpu_state },
 	{ "pagetables", kshell_command_pagetables },
 	{ "procls", kshell_command_proc_list },
 	{ "prockill", kshell_command_proc_kill },
@@ -263,19 +261,6 @@ static int kshell_command_alloctestu(void* userparam) {
 	(void)userparam;
 	kdprint("ALLOC TEST\n");
 	alloctestu();
-	return 0; /* Success */
-}
-static int kshell_command_get_cpu_state(void* userparam) {
-	(void)userparam;
-	cpu_state_t state = { 0 };
-	getstate(&state);
-	kprint("eax=%08X ebx=%08X ecx=%08X edx=%08X\n", state.eax, state.ebx, state.ecx, state.edx);
-	kprint("esi=%08X edi=%08X ebp=%08X esp=%08X\n", state.esi, state.edi, state.ebp, state.esp);
-	kprint("es =%8.4X cs =%8.4X ss =%8.4X ds =%8.4X\n", state.es, state.cs, state.ss, state.ds);
-	kprint("fs =%8.4X gs =%8.4X\n", state.fs, state.gs);
-	kprint("cr0=%08X cr2=%08X cr3=%08X\n", state.cr0, state.cr2, state.cr3);
-	kprint("eip=%08X eflags=%08X\n", state.eip, state.eflags);
-
 	return 0; /* Success */
 }
 static int kshell_command_help(void* userparam) {
