@@ -20,16 +20,22 @@ void scheduler_init(void);
 /* Scheduler load kernel process */
 process_t* scheduler_load_kprocess(uintptr_t entry);
 
-/* Scheduler load kernel process */
-process_t* scheduler_load_kprocess_elf(uint8_t* data, size_t size);
-
 /* Scheduler unload kernel process */
-void scheduler_unload_kprocess(process_t* proc);
+void scheduler_unload_kprocess(process_t* proc, int ret);
+
+/* Scheduler load user process */
+process_t* scheduler_load_uprocess(uintptr_t entry);
+
+/* Scheduler unload user process */
+void scheduler_unload_uprocess(process_t* proc, int ret);
 
 /* Scheduler get current process */
-process_t* scheduler_get_current_process(void);
+process_t* scheduler_current(void);
 
-/* Scheduler get 0th process */
-process_t* scheduler_get_head(void);
+/* Scheduler get first loaded process */
+process_t* scheduler_head(void);
+
+/* Scheduler get last loaded process */
+process_t* scheduler_tail(void);
 
 #endif

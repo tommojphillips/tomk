@@ -11,6 +11,24 @@
 #include <vmm.h>
 #include <kheap.h>
 
+/* PROC_FLAGS
+ *
+ *   -- Error condition (1 bit)
+ *   |
+ * | E X X X X X X X X X X X X X X X X X X X X X X X X X X X X M T T |
+ *                                                             | |
+ *                                                             | ----- Type (2 bits)
+ *                                                             ------- Memory (1 bit)
+ */
+#define PROC_FLAG_NONE         0b00000000
+#define PROC_FLAG_KERNEL       0b00000001 /* Process is executed in kernel mode */
+#define PROC_FLAG_USER         0b00000011 /* Process is executed in user mode */
+#define PROC_FLAG_MEMORY_STACK 0b00000100 /* Process has a memory stack */
+
+#define PROC_FLAG_TYPE_MASK    0b00000011
+
+#define PROC_FLAG_ERROR        0x80000000
+
 typedef struct context_t {
     uint32_t cr3;
     uint32_t gs;
@@ -40,6 +58,7 @@ struct process_t {
     context_t context;
     interrupt_frame_t frame;
     size_t id;
+    uint32_t flags;
     vmm_t vmm;
     heap_t heap;
     void* exe;

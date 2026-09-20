@@ -54,10 +54,7 @@ void kmain(void) {
 	scheduler_load_kprocess((uintptr_t)kshell);
 	
 	/* Unload ourself */
-	scheduler_unload_kprocess(scheduler_get_current_process());
-
-	/* We shouldnt get here. Hang the system */
-	khang();
+	scheduler_unload_kprocess(scheduler_current(), 0);
 }
 
 void kpanic(const char* fmt, ...) {
