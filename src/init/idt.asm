@@ -4,21 +4,8 @@
 
 BITS 32
 
-extern exception_dbz   ; exceptions.c
-extern exception_trap  ; exceptions.c
-extern exception_nmi   ; exceptions.c
-extern exception_int3  ; exceptions.c
-extern exception_of    ; exceptions.c
-extern exception_bound ; exceptions.c
-extern exception_ud    ; exceptions.c
-extern exception_df    ; exceptions.c
-extern exception_ts    ; exceptions.c
-extern exception_np    ; exceptions.c
-extern exception_ss    ; exceptions.c
-extern exception_gp    ; exceptions.c
-extern exception_pf    ; exceptions.c
-extern write_int_gate  ; idt.asm
-extern kpanic          ; kernel.asm
+extern ex_fault_handler   ; exceptions.c
+extern write_int_gate     ; idt.asm
 
 global idt_init
 global idt
@@ -57,41 +44,6 @@ idt_init:
     push exc_dbz                   ; offset
     push KCODE                     ; selector
     push vec_dbz                   ; vector 
-    call write_int_gate
-    add esp, 12
-
-    ; #TRAP
-    push exc_trap                  ; offset
-    push KCODE                     ; selector
-    push vec_trap                  ; vector 
-    call write_int_gate
-    add esp, 12
-
-    ; #NMI
-    push exc_nmi                   ; offset
-    push KCODE                     ; selector
-    push vec_nmi                   ; vector 
-    call write_int_gate
-    add esp, 12
-
-    ; #INT3
-    push exc_int3                  ; offset
-    push KCODE                     ; selector
-    push vec_int3                  ; vector 
-    call write_int_gate
-    add esp, 12
-
-    ; #OF
-    push exc_of                    ; offset
-    push KCODE                     ; selector
-    push vec_of                    ; vector 
-    call write_int_gate
-    add esp, 12
-
-    ; #BOUND
-    push exc_bound                 ; offset
-    push KCODE                     ; selector
-    push vec_bound                 ; vector 
     call write_int_gate
     add esp, 12
 
@@ -148,8 +100,13 @@ idt_init:
 
 ; EXCEPTION HANDLERS
 
+; esp+0  = vector
+; esp+4  = error code
+; esp+8  = eip
+; esp+12 = cs
+; esp+16 = eflags
 exc_handler:    
-    xchg edi, [esp+0]                  ; save edi; save routine in edi
+    xchg edi, [esp+0]                  ; save edi; save vector in edi
     push esi                           ; save esi
     push ebp                           ; save ebp
     push esp                           ; save esp
@@ -177,18 +134,12 @@ exc_handler:
     mov eax, cr0
     xchg eax, [esp+0]                  ; save cr0
 
-    pushfd                             ; save eflags
-    push 0                             ; save eip
+    push esp                           ; exception state
+    push edi                           ; exception vector
+    call ex_fault_handler
+    add esp, 8
 
-    test edi, edi                      ; routine == NULL?
-    jz .skip                           ; yes; dont call routine
-    
-    push esp
-    call edi
-    add esp, 4
-
-.skip:
-    add esp, 20*4                      ; pop STATE
+    add esp, 18*4                      ; pop exception state
 
     push 0
     call kpanic
@@ -196,61 +147,66 @@ exc_handler:
 
     iret
 
+; esp+0 = eip
+; esp+4 = cs
+; esp+8 = eflags
 exc_dbz:
     push 0                             ; fake error code
-    push exception_dbz
+    push vec_dbz
     jmp exc_handler
 
-exc_trap:
-    push 0                             ; fake error code
-    push exception_trap
-    jmp exc_handler
-
-exc_nmi:
-    push 0                             ; fake error code
-    push exception_nmi
-    jmp exc_handler
-
-exc_int3:
-    push 0                             ; fake error code
-    push exception_int3
-    jmp exc_handler
-
-exc_of:
-    push 0                             ; fake error code
-    push exception_of
-    jmp exc_handler
-
-exc_bound:
-    push 0                             ; fake error code
-    push exception_bound
-    jmp exc_handler
-
+; esp+0 = eip
+; esp+4 = cs
+; esp+8 = eflags
 exc_ud:
     push 0                             ; fake error code
-    push exception_ud
+    push vec_ud
     jmp exc_handler
 
+; esp+0  = error code
+; esp+4  = eip
+; esp+8  = cs
+; esp+12 = eflags
 exc_df:
-    push exception_df
+    push vec_df
     jmp exc_handler
 
+; esp+0  = error code
+; esp+4  = eip
+; esp+8  = cs
+; esp+12 = eflags
 exc_ts:
-    push exception_ts
+    push vec_ts
     jmp exc_handler
 
+; esp+0  = error code
+; esp+4  = eip
+; esp+8  = cs
+; esp+12 = eflags
 exc_np:
-    push exception_np
+    push vec_np
     jmp exc_handler
 
+; esp+0  = error code
+; esp+4  = eip
+; esp+8  = cs
+; esp+12 = eflags
 exc_ss:
-    push exception_ss
+    push vec_ss
     jmp exc_handler
 
+; esp+0  = error code
+; esp+4  = eip
+; esp+8  = cs
+; esp+12 = eflags
 exc_gp:
-    push exception_gp
+    push vec_gp
     jmp exc_handler
 
+; esp+0  = error code
+; esp+4  = eip
+; esp+8  = cs
+; esp+12 = eflags
 exc_pf:
-    push exception_pf
+    push vec_pf
     jmp exc_handler

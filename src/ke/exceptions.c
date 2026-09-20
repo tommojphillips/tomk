@@ -13,27 +13,72 @@
 #include <i86.h>
 #include <paging.h>
 #include <i80386_mnem.h>
+#include <scheduler.h>
+#include <process.h>
+
+#define vec_dbz     0x00 /* Divide by zero interrupt */
+#define vec_trap    0x01 /* Trap interrupt */
+#define vec_nmi     0x02 /* Non-maskable interrupt */
+#define vec_int3    0x03 /* Breakpoint interrupt */
+#define vec_of      0x04 /* Overflow interrupt */
+#define vec_bound   0x05 /* Bound interrupt */
+#define vec_ud      0x06 /* Undefined exception */
+#define vec_df      0x08 /* Double-fault exception */
+#define vec_ts      0x0A /* Task-segment exception */
+#define vec_np      0x0B /* Not-present exception */
+#define vec_ss      0x0C /* Stack-segment exception */
+#define vec_gp      0x0D /* General-protection exception */
+#define vec_pf      0x0E /* Page-fault exception */
 
 /* Unmapped write access */
-#define UNMAPPED_WRITE_ACCESS           0xA0000001
+#define UNMAPPED_WRITE_ACCESS           0x00000001
 
 /* Unmapped read access */
-#define UNMAPPED_READ_ACCESS            0xA0000002
+#define UNMAPPED_READ_ACCESS            0x00000002
 
 /* Write access violation */
-#define WRITE_ACCESS_VIOLATION          0xA0000003
+#define WRITE_ACCESS_VIOLATION          0x00000003
 
 /* Read access violation */
-#define READ_ACCESS_VIOLATION           0xA0000004
+#define READ_ACCESS_VIOLATION           0x00000004
 
 /* Divide by zero */
-#define INTEGER_DIVIDE_BY_ZERO          0xA0000005
+#define INTEGER_DIVIDE_BY_ZERO          0x00000005
 
-void print_exception_state(exception_state_t* state) {
-    char buffer[32] = {0};
-    i80386_mnem_get_str(state->exception.eip, buffer, 32);
-    kprint(" at\n0x%02X: %s\n", state->exception.eip, buffer);
-    kprint("\nF   = 0x%02X\nCR0 = 0x%02X\nCR2 = 0x%02X\nCR3 = 0x%02X\nEAX = 0x%02X\nECX = 0x%02X\nEDX = 0x%02X\nEBX = 0x%02X\n" \
+/* Code access violation */
+#define CODE_ACCESS_VIOLATION           0x00000006
+
+/* Unmapped code access */
+#define UNMAPPED_CODE_ACCESS            0x00000007
+
+static const char* exception_names[] = {
+    "DBZ",
+    "TRAP",
+    "NMI",
+    "INT3",
+    "OF",
+    "BOUND",
+    "UD",
+    "DF",
+    "TS",
+    "NP",
+    "SS",
+    "GP",
+    "PF"
+};
+
+static const char* error_names[] = {
+    "Unknown error",
+    "Unmapped write access",
+    "Unmapped read access",
+    "Write access violation",
+    "Read access violation",
+    "Integer divide by zero",
+    "Code access violation"
+};
+
+static void print_state(exception_state_t* state) {
+    kprint("F   = 0x%02X\nCR0 = 0x%02X\nCR2 = 0x%02X\nCR3 = 0x%02X\nEAX = 0x%02X\nECX = 0x%02X\nEDX = 0x%02X\nEBX = 0x%02X\n" \
         "ESP = 0x%02X\nEBP = 0x%02X\nESI = 0x%02X\nEDI = 0x%02X\n" \
         "CS  = 0x%02X\nSS  = 0x%02X\nES  = 0x%02X\nDS  = 0x%02X\nFS  = 0x%02X\nGS  = 0x%02X\n", 
         state->exception.eflags, state->cpu.cr0, state->cpu.cr2, state->cpu.cr3,
@@ -41,103 +86,93 @@ void print_exception_state(exception_state_t* state) {
         state->cpu.esp, state->cpu.ebp, state->cpu.esi, state->cpu.edi,
         state->cpu.cs, state->cpu.ss, state->cpu.es, state->cpu.ds, state->cpu.fs, state->cpu.gs);
 }
-void exception_dbz(exception_state_t* state) {
-    /* DBZ - ITC 0 */
+
+static void dbz(process_t* proc, exception_state_t* state) {
+    /* DBZ */
     char buffer[32] = {0};
-    const char* priv = (state->exception.error & PTE_US) ? "User" : "Super";
+    const char* priv = (state->exception.cs & 0x3) ? "User" : "Kernel";
 
     i80386_mnem_get_str(state->exception.eip, buffer, 32);
-    kpanic(" Exception thrown at 0x%08X\n %08X: Integer division by zero (%s)\n  -> %s\n",
-        state->exception.eip, INTEGER_DIVIDE_BY_ZERO, priv, buffer);
+    kprint("EXCEPTION:\n %s process (pid=%u)\n threw exception at 0x%08X\n %08X: Integer division by zero\n 0x%08X: %s\n",
+        priv, proc->id, state->exception.eip, INTEGER_DIVIDE_BY_ZERO, state->exception.eip, buffer);
 }
-void exception_trap(exception_state_t* state) {
-    /* TRAP - ITC 1 */
-    kprint("\n#TRAP");
-    print_exception_state(state);
+static void gp(process_t* proc, exception_state_t* state, const char* name) {
+    /* Fault */
+    char buffer[32] = {0};
+    const char* priv = (state->exception.cs & 0x3) ? "User" : "Kernel";
+
+    i80386_mnem_get_str(state->exception.eip, buffer, 32);
+    kprint("EXCEPTION:\n %s process (pid=%u)\n Threw exception at 0x%08X\n %08X: #%s(%X)\n 0x%08X: %s\n",
+        priv, proc->id, state->exception.eip, 0, name, state->exception.error, state->exception.eip, buffer);
+
+    print_state(state);
 }
-void exception_nmi(exception_state_t* state) {
-    /* NMI - ITC 2 */
-    kprint("\n#NMI");
-    print_exception_state(state);
-}
-void exception_int3(exception_state_t* state) {
-    /* INT3 - ITC 3 */
-    kprint("\n#INT3");
-    print_exception_state(state);
-}
-void exception_of(exception_state_t* state) {
-    /* OF - ITC 4 */
-    kprint("\n#OF");
-    print_exception_state(state);
-}
-void exception_bound(exception_state_t* state) {
-    /* BOUND - ITC5 */
-    kprint("\n#BOUND");
-    print_exception_state(state);
-}
-void exception_ud(exception_state_t* state) {
-    /* Undefined fault */
-    kprint("\n#UD");
-    print_exception_state(state);
-}
-void exception_df(exception_state_t* state) {
-    /* Double fault */
-    kprint("\n#DF(%X)", state->exception.error);
-    print_exception_state(state);
-}
-void exception_ts(exception_state_t* state) {
-    /* Task segment fault */
-    kprint("\n#TS(%X)", state->exception.error);
-    print_exception_state(state);
-}
-void exception_np(exception_state_t* state) {
-    /* Not present fault */
-    kprint("\n#NP(%X)", state->exception.error);
-    print_exception_state(state);
-}
-void exception_ss(exception_state_t* state) {
-    /* Stack segment fault */
-    kprint("\n#SS(%X)", state->exception.error);
-    print_exception_state(state);
-}
-void exception_gp(exception_state_t* state) {
-    /* General protection fault */
-    kprint("\n#GP(%X)", state->exception.error);
-    print_exception_state(state);
-}
-void exception_pf(exception_state_t* state) {
+static void pf(process_t* proc, exception_state_t* state) {
     /* Page fault */
     char buffer[32] = { 0 };
-    const char* priv = (state->exception.error & PTE_US) ? "User" : "Super";
+    const char* priv = (state->exception.cs & 0x3) ? "User" : "Kernel";
+    int error = 0;
+
+    i80386_mnem_get_str(state->exception.eip, buffer, 32);
 
     switch (state->exception.error & (PTE_P | PTE_RW)) {
         
-        /* Treat unmapped addresses that have the RW bit clear as a ummapped-read-access */
         case (PTE_NP | PTE_RO):
-            i80386_mnem_get_str(state->exception.eip, buffer, 32);
-            kpanic(" Exception thrown at 0x%08X\n %08X: Unmapped read access (%s)\n reading location 0x%08X -> %s\n",
-                state->exception.eip, UNMAPPED_READ_ACCESS, priv, state->cpu.cr2, buffer);
+            if (state->cpu.cr2 == state->exception.eip) {
+                /* Treat unmapped addresses that have the RW bit clear and cr2 == eip as unmapped-code-access */
+                error = UNMAPPED_CODE_ACCESS;
+            }
+            else {
+            /* Treat unmapped addresses that have the RW bit clear as a ummapped-read-access */
+                error = UNMAPPED_READ_ACCESS;
+            }
             break;
 
-        /* Treat mapped addresses that have the RW bit clear as a read-access-violation */
         case (PTE_P | PTE_RO):
-            i80386_mnem_get_str(state->exception.eip, buffer, 32);
-            kpanic(" Exception thrown at 0x%08X\n %08X: Read access violation (%s)\n reading location 0x%08X -> %s\n",
-                state->exception.eip, READ_ACCESS_VIOLATION, priv, state->cpu.cr2, buffer);
+            if (state->cpu.cr2 == state->exception.eip) {
+                /* Treat mapped addresses that have the RW bit clear and cr2 == eip as code-access-violation */
+                error = CODE_ACCESS_VIOLATION;
+            }
+            else {
+                /* Treat mapped addresses that have the RW bit clear as a read-access-violation */
+                error = READ_ACCESS_VIOLATION;
+            }
             break;
         
         /* Treat unmapped addresses that have the RW bit set as a ummapped-write-access */        
         case (PTE_NP | PTE_RW):
-            i80386_mnem_get_str(state->exception.eip, buffer, 32);
-            kpanic(" Exception thrown at 0x%08X\n %08X: Unmapped write access (%s)\n writing location 0x%08X -> %s\n",
-                state->exception.eip, UNMAPPED_WRITE_ACCESS, priv, state->cpu.cr2, buffer);
+            error = UNMAPPED_WRITE_ACCESS;
             break;
 
         /* Treat mapped addresses that have the RW bit set as a write-access-violation */
         case (PTE_P | PTE_RW):
-            i80386_mnem_get_str(state->exception.eip, buffer, 32);
-            kpanic(" Exception thrown at 0x%08X\n %08X: Write access violation (%s)\n writing location 0x%08X -> %s\n",
-                state->exception.eip, WRITE_ACCESS_VIOLATION, priv, state->cpu.cr2, buffer);
+            error = WRITE_ACCESS_VIOLATION;
             break;
-    }    
+    }
+    
+    kprint("EXCEPTION:\n %s process (pid=%u)\n Threw exception at 0x%08X: %s\n %08X: %s (%08X)\n",
+        priv, proc->id, state->exception.eip, buffer, error, error_names[error], state->cpu.cr2);
+}
+
+void ex_fault_handler(uint8_t vector, exception_state_t* state) {
+    process_t* proc = scheduler_current();
+    
+    switch (vector) {
+        case vec_dbz:
+            dbz(proc, state);
+            break;
+
+        case vec_ud:
+        case vec_df:
+        case vec_ts:
+        case vec_np:
+        case vec_ss:
+        case vec_gp:
+            gp(proc, state, exception_names[vector]);
+            break;
+
+        case vec_pf:
+            pf(proc, state);
+            break;
+    }
 }

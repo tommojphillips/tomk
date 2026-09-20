@@ -12,6 +12,8 @@ typedef struct exception_frame_t {
     uint32_t eip;
     uint32_t cs;
     uint32_t eflags;
+    uint32_t esp2;
+    uint32_t ss2;
 } exception_frame_t;
 
 typedef struct cpu_state_t {
