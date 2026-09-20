@@ -9,8 +9,6 @@ extern gdt
 extern timer_ticks
 extern printf
 
-global int86
-
 global inb
 global outb
 global inw
@@ -22,9 +20,6 @@ global write_int_gate
 global write_task_gate
 global write_tss_descriptor
 
-global setstate
-global getstate
-
 global getesp
 
 global setcr0
@@ -35,219 +30,12 @@ global getcr0
 global getcr2
 global getcr3
 
-global setdr0
-global setdr1
-global setdr2
-global setdr3
-global setdr6
-global setdr7
-
-global getdr0
-global getdr1
-global getdr2
-global getdr3
-global getdr6
-global getdr7
-
-global enable_interrupts
-global disable_interrupts
-
 global spinwait
 global haltwait
 global wait_ms
 
-struc REGS
-    .eip    resd 1
-    .eflags resd 1
-
-    .cr0    resd 1
-    .cr2    resd 1
-    .cr3    resd 1
-
-    .es     resd 1
-    .cs     resd 1
-    .ss     resd 1
-    .ds     resd 1
-    .fs     resd 1
-    .gs     resd 1
-
-    .eax    resd 1
-    .ecx    resd 1
-    .edx    resd 1
-    .ebx    resd 1
-    .esp    resd 1
-    .ebp    resd 1
-    .esi    resd 1
-    .edi    resd 1
-endstruc
-
-REGS.ax equ REGS.eax
-REGS.al equ REGS.eax
-REGS.ah equ REGS.eax+1
-
-REGS.cx equ REGS.ecx
-REGS.cl equ REGS.ecx
-REGS.ch equ REGS.ecx+1
-
-REGS.dx equ REGS.edx
-REGS.dl equ REGS.edx
-REGS.dh equ REGS.edx+1
-
-REGS.bx equ REGS.ebx
-REGS.bl equ REGS.ebx
-REGS.bh equ REGS.ebx+1
-
-REGS.sp equ REGS.esp
-REGS.bp equ REGS.ebp
-REGS.si equ REGS.esi
-REGS.di equ REGS.edi
-
 Section .text
 
-; Set CPU Registers
-; esp+4 = input_regs
-setregs:
-    mov eax, [esp+4]                   ; input_regs 
-    test eax, eax                      ; input_regs == NULL?
-    jz .skip                           ; yes, done
-
-    mov edi, [eax+REGS.edi]
-    mov esi, [eax+REGS.esi]
-    mov ebp, [eax+REGS.ebp]
-    mov ebx, [eax+REGS.ebx]
-    mov edx, [eax+REGS.edx]
-    mov ecx, [eax+REGS.ecx]
-    mov eax, [eax+REGS.eax]
-.skip:
-    ret
-
-; Get CPU Registers
-; esp+4 = output_regs
-getregs:
-    pusha                              ; save register state
-    mov edx, [esp+36]                  ; output_regs (+32 from pusha)
-    test edx, edx                      ; output_regs == NULL
-    jz .skip                           ; yes, skip
-
-    mov eax, [esp+0]
-    mov [edx+REGS.edi], eax
-
-    mov eax, [esp+4]
-    mov [edx+REGS.esi], eax
-
-    mov eax, [esp+8]
-    mov [edx+REGS.ebp], eax
-
-    mov eax, [esp+12]
-    mov [edx+REGS.esp], eax
-
-    mov eax, [esp+16]
-    mov [edx+REGS.ebx], eax
-
-    mov eax, [esp+20]
-    mov [edx+REGS.edx], eax
-
-    mov eax, [esp+24]
-    mov [edx+REGS.ecx], eax
-
-    mov eax, [esp+28]
-    mov [edx+REGS.eax], eax
-
-.skip:
-    popa                               ; restore regiser state
-    ret
-
-
-; Get CPU State
-; esp+4 = output_state
-getstate:
-    push edx
-
-    cmp dword [esp+4+4], 0             ; output_state == NULL
-    jz .done
-
-    ; save register state
-    push [esp+4+4]                     ; output_state
-    call getregs
-    add esp, 4
- 
-    mov edx, [esp+4+4]                 ; output_state
-    xor eax, eax                       ; clear upper 16 bits
-
-    ; save gs
-    mov ax, gs
-    mov [edx+REGS.gs], eax
-    
-    ; save fs
-    mov ax, fs
-    mov [edx+REGS.fs], eax
-    
-    ; save ds
-    mov ax, ds
-    mov [edx+REGS.ds], eax
-    
-    ; save ss
-    mov ax, ss
-    mov [edx+REGS.ss], eax
-
-    ; save cs
-    mov ax, cs
-    mov [edx+REGS.cs], eax
-
-    ; save es
-    mov ax, es
-    mov [edx+REGS.es], eax
-
-    ; save cr3
-    mov eax, cr3
-    mov [edx+REGS.cr3], eax
-    
-    ; save cr2
-    mov eax, cr2
-    mov [edx+REGS.cr2], eax
-    
-    ; save cr0
-    mov eax, cr0
-    mov [edx+REGS.cr0], eax
-
-    ; save eflags
-    pushfd
-    pop eax
-    mov [edx+REGS.eflags], eax
-
-    ; save eip
-    mov eax, [esp+4+0] ; ret_addr
-    mov [edx+REGS.eip], eax
-
-.done:
-    pop edx
-    ret
-
-; int86;
-; esp+4  = int vector
-; esp+8  = input registers pointer
-; esp+12 = output state pointer
-int86:
-    pusha                              ; save register state
-
-    mov al, [esp+4]                    ; vector
-    mov [vec], al    
-
-    push [esp+8]                       ; input regs
-    call setregs
-    add esp, 4
-
-    ; INT ib
-    db 0xCD
-vec db 0x00
-     
-    push [esp+12]                      ; output state
-    call getstate
-    add esp, 4
-
-    popa                               ; restore regiser state
-    ret
-    
 ; inb;
 ; esp+4 = port
 ; returns value

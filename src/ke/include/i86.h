@@ -7,17 +7,6 @@
 
 #include <stdint.h>
 
-typedef struct cpu_regs_t {
-    uint32_t eax;
-    uint32_t ecx;
-    uint32_t edx;
-    uint32_t ebx;
-    uint32_t esp;
-    uint32_t ebp;
-    uint32_t esi;
-    uint32_t edi;
-} cpu_regs_t;
-
 typedef struct exception_frame_t {
     uint32_t error;
     uint32_t eip;
@@ -26,9 +15,6 @@ typedef struct exception_frame_t {
 } exception_frame_t;
 
 typedef struct cpu_state_t {
-    uint32_t eip;
-    uint32_t eflags;
-
     uint32_t cr0;
     uint32_t cr2;
     uint32_t cr3;
@@ -85,16 +71,6 @@ extern void outw(uint16_t port, uint16_t value);
  value: the 32bit value to write to IO port/s */
 extern void outd(uint16_t port, uint32_t value);
 
-/* Invoke Interrupt 
- vector:       interrupt to invoke
- input_regs:   the gpr values to invoke the interrupt with 
- output_state: the cpu state after the interrupt has been invoked */
-extern void int86(uint8_t vector, const cpu_regs_t* input_regs, cpu_state_t* output_state);
-
-/* Get CPU State
- state: the cpu state */
-extern void getstate(const cpu_state_t* state);
-
 /* Get ESP
  Returns ESP */
 extern uint32_t getesp(void);
@@ -125,66 +101,6 @@ extern uint32_t getcr3(void);
  value: the value to set cr3
  Returns CR3 after assignment */
 extern uint32_t setcr3(uint32_t value);
-
-/* Get DR0
- Returns DR0 */
-extern uint32_t getdr0(void);
-
-/* Set DR0
- value: the value to set dr0
- Returns DR0 after assignment */
-extern uint32_t setdr0(uint32_t value);
-
-/* Get DR1
- Returns DR1 */
-extern uint32_t getdr1(void);
-
-/* Set DR1
- value: the value to set dr1
- Returns DR1 after assignment */
-extern uint32_t setdr1(uint32_t value);
-
-/* Get DR2
- Returns DR2 */
-extern uint32_t getdr2(void);
-
-/* Set DR2
- value: the value to set dr2
- Returns DR2 after assignment */
-extern uint32_t setdr2(uint32_t value);
-
-/* Get DR3
- Returns DR3 */
-extern uint32_t getdr3(void);
-
-/* Set DR3
- value: the value to set dr3
- Returns DR3 after assignment */
-extern uint32_t setdr3(uint32_t value);
-
-/* Get DR6
- Returns DR6 */
-extern uint32_t getdr6(void);
-
-/* Set DR6
- value: the value to set dr6
- Returns DR6 after assignment */
-extern uint32_t setdr6(uint32_t value);
-
-/* Get DR7
- Returns DR7 */
-extern uint32_t getdr7(void);
-
-/* Set DR7
- value: the value to set dr7
- Returns DR7 after assignment */
-extern uint32_t setdr7(uint32_t value);
-
-/* Enable CPU Interrupts */
-extern void enable_interrupts(void);
-
-/* Disable CPU Interrupts */
-extern void disable_interrupts(void);
 
 /* Spin Wait CPU x amount of times
  spins: */
