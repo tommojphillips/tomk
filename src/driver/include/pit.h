@@ -7,8 +7,18 @@
 
 #include <stdint.h>
 
-extern volatile uint32_t timer_ticks;
+typedef void (*pit_handler_fn_t)(void);
 
-void wait_ms(uint32_t ms);
+/* PIT set timer int handler */
+void pit_set_handler(pit_handler_fn_t handler);
+
+/* PIT enable timer */
+void pit_enable(void);
+
+/* PIT disable timer */
+void pit_disable(void);
+
+/* PIT set frequency in hz */
+void pit_set_freq(uint16_t interval_hz);
 
 #endif
