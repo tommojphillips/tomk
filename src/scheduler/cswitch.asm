@@ -5,8 +5,16 @@
 
 BITS 32
 
+; Debugging
+;%define CSWITCH_DBG 1
+
 extern scheduler_switch      ; scheduler.c
 extern pic_send_eoi          ; pic.asm
+
+%ifdef CSWITCH_DBG
+extern scheduler_debug_cswitch_save
+extern scheduler_debug_cswitch_load
+%endif
 
 global cswitch_handler
 
@@ -74,11 +82,11 @@ cswitch_handler:
     ; scheduler_switch(&current, &next)
     ; create storage for 2 pointers
     sub esp, 8
-    lea eax, [esp+0]                             ; &current
-    lea edx, [esp+4]                             ; &next
+    lea eax, [esp+0]                             ; current proc
+    lea edx, [esp+4]                             ; next proc
 
-    push edx                                     ; &next
-    push eax                                     ; &current
+    push edx                                     ; next proc
+    push eax                                     ; current proc
     call scheduler_switch
     add esp, 8
     
@@ -86,42 +94,47 @@ cswitch_handler:
     jnz .switch
 
 .restore:
-    add esp, 8
+    ; restore current proc
+    add esp, 8                                   ; cleanup the 2 pointers
     popa    
     iret
 
 .switch:
+
     ; save current proc
-    push [esp+0]                                 ; &current
+    push ebp                                     ; interrupt frame
+    push [esp+4]                                 ; current proc
     call cswitch_save
-    add esp, 4
+    add esp, 8
 
     ; load next proc
-    push [esp+4]                                 ; &next
+    push [esp+4]                                 ; next proc
     call cswitch_load
     ; DOESNT RETURN
 
 ; Save context
 ; esp+4 = context
+; esp+8 = interrupt frame
 cswitch_save:
     mov edi, [esp+4]
+    mov esi, [esp+8]                             ; context
 
     ; context == NULL?
     test edi, edi
     jz .done
 
     ; save interrupt frame 
-    mov eax, [ebp+FRAME.eflags]
+    mov eax, [esi+FRAME.eflags]
     mov [edi+CTX.eflags], eax
 
-    mov eax, [ebp+FRAME.cs]
+    mov eax, [esi+FRAME.cs]
     mov [edi+CTX.cs], eax
 
-    mov eax, [ebp+FRAME.eip]
+    mov eax, [esi+FRAME.eip]
     mov [edi+CTX.eip], eax
     
     ; user mode?
-    test [ebp+FRAME.cs], 3
+    test [esi+FRAME.cs], 3
     jnz .user
 
 .kernel:
@@ -129,40 +142,40 @@ cswitch_save:
     mov ax, ss
     mov [edi+CTX.ss], ax
 
-    mov eax, [ebp+FRAME.esp]
+    mov eax, [esi+FRAME.esp]
     add eax, 12
     mov [edi+CTX.esp], eax
     jmp .save
 
 .user:
     ; save user stack
-    mov ax, [ebp+FRAME.ss2]
+    mov ax, [esi+FRAME.ss2]
     mov [edi+CTX.ss], ax
 
-    mov eax, [ebp+FRAME.esp2]
+    mov eax, [esi+FRAME.esp2]
     mov [edi+CTX.esp], ax
 
 .save:
     ; save general registers
-    mov eax, [ebp+FRAME.eax]
+    mov eax, [esi+FRAME.eax]
     mov [edi+CTX.eax], eax
 
-    mov eax, [ebp+FRAME.ecx]
+    mov eax, [esi+FRAME.ecx]
     mov [edi+CTX.ecx], eax
 
-    mov eax, [ebp+FRAME.edx]
+    mov eax, [esi+FRAME.edx]
     mov [edi+CTX.edx], eax
 
-    mov eax, [ebp+FRAME.ebx]
+    mov eax, [esi+FRAME.ebx]
     mov [edi+CTX.ebx], eax
 
-    mov eax, [ebp+FRAME.ebp]
+    mov eax, [esi+FRAME.ebp]
     mov [edi+CTX.ebp], eax
 
-    mov eax, [ebp+FRAME.esi]
+    mov eax, [esi+FRAME.esi]
     mov [edi+CTX.esi], eax
 
-    mov eax, [ebp+FRAME.edi]
+    mov eax, [esi+FRAME.edi]
     mov [edi+CTX.edi], eax
 
     ; save data segment registers
@@ -179,6 +192,13 @@ cswitch_save:
     mov eax, cr3
     mov [edi+CTX.cr3], eax
 
+%ifdef CSWITCH_DBG   
+    ; Debug
+    push edi                                     ; context
+    call scheduler_debug_cswitch_save
+    add esp, 4
+%endif
+
 .done:
     ret
 
@@ -186,7 +206,18 @@ cswitch_save:
 ; esp+4 = context
 ; Does not RETURN!
 cswitch_load:
-    mov edi, [esp+4]
+    mov edi, [esp+4]                             ; context
+
+%ifdef CSWITCH_DBG
+    ; Debug
+    push edi                                     ; context
+    call scheduler_debug_cswitch_load
+    add esp, 4
+%endif
+
+    ; load cr3
+    mov eax, [edi+CTX.cr3]
+    mov cr3, eax
 
     ; user mode switch?
     test [edi+CTX.cs], 3
@@ -209,11 +240,6 @@ cswitch_load:
     push [edi+CTX.eflags]
     push [edi+CTX.cs]
     push [edi+CTX.eip]
-
-.load:
-    ; load cr3
-    mov eax, [edi+CTX.cr3]
-    mov cr3, eax
 
     ; load data segment registers
     mov ax, [edi+CTX.es]
