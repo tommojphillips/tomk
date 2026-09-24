@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <kdprint.h>
 #include <i86.h>
+#include <pit.h>
 #include <paging.h>
 #include <vmm.h>
 #include <kmalloc.h>
@@ -29,8 +30,8 @@
 /* Global scheduler instance */
 static scheduler_t scheduler;
 
-static process_t* create_proc(uintptr_t entry, uint32_t flags);
-static void destroy_proc(process_t* proc, int ret);
+static process_t* create_proc(process_entry_fn_t entry, uint32_t flags);
+static void destroy_proc(process_t* proc, int wait_self_destroy);
 
 static void idle_proc(void);
 static void cleanup_proc(void);
@@ -38,73 +39,81 @@ static void cleanup_proc(void);
 void scheduler_init(void) {
 
     /* Create the kernel process */
-    process_t* kinit = create_proc(0, PROC_FLAG_KERNEL);
+    process_t* kinit = create_proc(NULL, PROC_FLAG_KERNEL);
     if (kinit == NULL) {
-        kdprint("[SCHEDULER] Error failed to create kinit proc\n");
-        return;
-    }
-    /* Set the current process to the (this) kernel process */
-    scheduler.procman.current = kinit;
-    
-    /* Create the idle process */
-    process_t* idle1 = create_proc((uintptr_t)idle_proc, PROC_FLAG_KERNEL);
-    if (idle1 == NULL) {
-        kdprint("[SCHEDULER] Error failed to create idle proc\n");
         return;
     }
 
-    /* Setup PIT int handler */
-    write_int_gate(0x20, 0x08, (uintptr_t)cswitch_handler);
+    /* Set the current process to the (this) kernel process */
+    scheduler.current = kinit;
+    
+    /* Create the idle process */
+    process_t* idle1 = create_proc(idle_proc, PROC_FLAG_KERNEL | PROC_FLAG_STACK);
+    if (idle1 == NULL) {
+        return;
+    }
+
+    /* Setup timer */
+    pit_set_handler(cswitch_handler);
+    pit_set_freq(1000); /* 50Hz */
+    pit_enable();
 
 	kprint("[SCHEDULER] Init OK\n");
 }
-process_t* scheduler_load_kprocess(uintptr_t entry) {
+process_t* scheduler_load_kprocess(process_entry_fn_t entry) {
     /* Create process */
-    return create_proc(entry, PROC_FLAG_KERNEL | PROC_FLAG_MEMORY_STACK);
+    return create_proc(entry, PROC_FLAG_KERNEL | PROC_FLAG_STACK | PROC_FLAG_HEAP);
 }
-process_t* scheduler_load_uprocess(uintptr_t entry) {
+process_t* scheduler_load_uprocess(process_entry_fn_t entry) {
     /* Create process */
-    return create_proc(entry, PROC_FLAG_USER | PROC_FLAG_MEMORY_STACK);
+    return create_proc(entry, PROC_FLAG_USER | PROC_FLAG_STACK | PROC_FLAG_HEAP);
 }
-void scheduler_unload_kprocess(process_t* proc, int ret) {
+void scheduler_unload_kprocess(process_t* proc, int wait_self_destroy) {
     /* Destroy process */
-    destroy_proc(proc, ret);
+    destroy_proc(proc, wait_self_destroy);
 }
-void scheduler_unload_uprocess(process_t* proc, int ret) {
+void scheduler_unload_uprocess(process_t* proc, int wait_self_destroy) {
     /* Destroy process */
-    destroy_proc(proc, ret);
+    destroy_proc(proc, wait_self_destroy);
 }
 
 process_t* scheduler_current(void) {
-    return scheduler.procman.current;
+    return scheduler.current;
 }
 process_t* scheduler_head(void) {
-    return scheduler.procman.head;
+    return scheduler.head;
 }
 process_t* scheduler_tail(void) {
-    return scheduler.procman.tail;
+    return scheduler.tail;
 }
 
 int scheduler_switch(process_t** current, process_t** next) {
 
-    if (scheduler.procman.current == NULL) {
-        scheduler.procman.current = scheduler.procman.head;
+    if (scheduler.current == NULL) {
+        scheduler.current = scheduler.head;
     }
 
-    if (!process_update(scheduler.procman.current)) {
+    if (!process_update(scheduler.current)) {
         *current = NULL;
         *next = NULL;
         return 0; /* no switch */
     }
 
-    *current = scheduler.procman.current;
-    *next = process_next(&scheduler.procman, scheduler.procman.current);
-    scheduler.procman.current = *next;
+    *current = scheduler.current;
+    
+    if (scheduler.current->next != NULL) {
+        *next = scheduler.current->next;
+    }
+    else {
+        *next = scheduler.head;
+    }
+
+    scheduler.current = *next;
 
     return *next != *current; /* switch? */
 }
 
-static process_t* create_proc(uintptr_t entry, uint32_t flags) {
+static process_t* create_proc(process_entry_fn_t entry, uint32_t flags) {
     process_t* proc = NULL;
     uint16_t selcode = 0;
     uint16_t selstack = 0;
@@ -124,7 +133,8 @@ static process_t* create_proc(uintptr_t entry, uint32_t flags) {
     }
 
     /* Create process */
-    if (!process_create(&scheduler.procman, &proc)) {
+    if (!process_create(&proc)) {
+        kdprint("[SCHEDULER] Error failed to create process\n");
         return NULL;
     }
     
@@ -144,57 +154,93 @@ static process_t* create_proc(uintptr_t entry, uint32_t flags) {
     proc->context.ds = seldata;
     proc->context.fs = seldata;
     proc->context.gs = seldata;
-
-    /* Setup stack */
-    void* stack = kmalloc(DEFAULT_STACK);
-    if (stack == NULL) {
-        return NULL;
-    }
-
-    /* Set the stack to the top of stack */
-    stack += DEFAULT_STACK;
-
-    /* Inject cleanup return function */
-    stack -= sizeof(uintptr_t);
-    *((uintptr_t*)stack) = (uintptr_t)&cleanup_proc;
-    
-    /* Set stack pointer */
-    proc->context.esp = (uintptr_t)stack;
     proc->context.ss = selstack;
+    
+    if (flags & PROC_FLAG_STACK) {
+        /* Setup stack */
+        proc->stack = kmalloc(DEFAULT_STACK);
+        if (proc->stack == NULL) {
+            kdprint("[SCHEDULER] Error failed allocate process stack\n");
+            return NULL;
+        }
+
+        /* Inject cleanup return function */
+        void* stack = proc->stack + DEFAULT_STACK - sizeof(uintptr_t);
+        *((uintptr_t*)stack) = (uintptr_t)&cleanup_proc;
+    
+        /* Set stack pointer */
+        proc->context.esp = (uintptr_t)stack;
+    }
 
     /* Setup interrupt frame */
     proc->frame.eip = (uint32_t)entry;
     proc->frame.cs = selcode;
     proc->frame.eflags = 0x202;
 
-    proc->id = scheduler.procman.count++;
+    proc->id = scheduler.count++;
     proc->flags = flags;
 
     /* Create page directory, Map kernel space into the processes address space */
     proc->context.cr3 = pgd_create_pd();
     
     /* Init memory stack ( VMM -> HEAP ) */
-    if (flags & PROC_FLAG_MEMORY_STACK) {
+    if (flags & PROC_FLAG_HEAP) {
         vmm_init(&proc->vmm, UVIRT, UVIRT_END, kmalloc);
         heap_init(&proc->heap, &proc->vmm);
     }
 
 	kdprint("[SCHEDULER] Process created pid=%u flags=%u\n", proc->id, flags);
+    
+    /* Append process to list */
+    proc->next = NULL;
+    proc->prev = scheduler.tail;
+    if (scheduler.tail != NULL) {
+        scheduler.tail->next = proc;
+    }
+    else {
+        scheduler.head = proc;
+    }
+    scheduler.tail = proc;
+
     return proc;
 }
 
-static void destroy_proc(process_t* proc, int ret) {
+static void destroy_proc(process_t* proc, int wait_self_destroy) {
 
     if (proc == NULL) {
         return;
     }
+    
+    /* Remove process from list */
+    if (proc->prev != NULL) {
+        proc->prev->next = proc->next;
+    }
+    else {
+        scheduler.head = proc->next;
+    }
+    if (proc->next != NULL) {
+        proc->next->prev = proc->prev;
+    }
+    else {
+        scheduler.tail = proc->prev;
+    }
+    proc->next = NULL;
+    proc->prev = NULL;
 
     kdprint("[SCHEDULER] Process destroyed pid=%u flags=%u\n", proc->id, proc->flags);
 
-    if (proc->flags & PROC_FLAG_MEMORY_STACK) {
-        /* Destroy memory stack ( VMM -> HEAP ) */
+    if (proc->flags & PROC_FLAG_HEAP) {
+        /* Destroy heap ( VMM -> HEAP ) */
         heap_destroy(&proc->heap);
         vmm_destroy(&proc->vmm, kfree);
+    }
+
+    if (proc->flags & PROC_FLAG_STACK) {
+        /* Destroy stack */
+        if (proc->stack != NULL) {
+            kfree(proc->stack);
+            proc->stack = NULL;
+        }
     }
 
     /* Destroy page directory */
@@ -205,16 +251,14 @@ static void destroy_proc(process_t* proc, int ret) {
         proc->exe = NULL;
         proc->exe_size = 0;
     }
-    
+
     /* Destroy process */
-    process_destroy(&scheduler.procman, proc);
-    
-    if (scheduler.procman.current == proc) {
-        /* We are unloading ourself, spin untill we die */
-        scheduler.procman.current = NULL;
-        while (1) {
-            haltwait();
-        }
+    process_destroy(proc);
+
+    if (wait_self_destroy && scheduler.current == proc) {
+        /* We are unloading our self. Wait until we die */
+        scheduler.current = NULL;
+        halt();
     }
 }
 
@@ -222,12 +266,17 @@ static void destroy_proc(process_t* proc, int ret) {
 static void cleanup_proc(void) {
     process_t* proc = scheduler_current();
     kdprint("[SCHEDULER] Process cleanup pid=%u flags=%u\n", proc->id, proc->flags);
-    scheduler_unload_kprocess(proc, 0);
+    scheduler_unload_kprocess(proc, 1);
 }
 
 /* Idle process */
 static void idle_proc(void) {
-    while (1) { 
-        haltwait();
-    }
+    halt();
+}
+
+void scheduler_debug_cswitch_save(process_t* proc) {
+    kdprint("[SCHEDULER] CSWITCH_SAVE pid=%u eip=%08X cs=%04X esp=%08X ss=%04X\n", proc->id, proc->frame.eip, proc->frame.cs, proc->context.esp, proc->context.ss);
+}
+void scheduler_debug_cswitch_load(process_t* proc) {
+    kdprint("[SCHEDULER] CSWITCH_LOAD pid=%u eip=%08X cs=%04X esp=%08X ss=%04X\n", proc->id, proc->frame.eip, proc->frame.cs, proc->context.esp, proc->context.ss);
 }

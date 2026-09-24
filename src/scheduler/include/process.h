@@ -1,5 +1,7 @@
 /* process.h
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
+ *
+ * Process 
  */
 
 #ifndef _PROCESS_H
@@ -23,12 +25,14 @@
 #define PROC_FLAG_NONE         0b00000000
 #define PROC_FLAG_KERNEL       0b00000001 /* Process is executed in kernel mode */
 #define PROC_FLAG_USER         0b00000011 /* Process is executed in user mode */
-#define PROC_FLAG_MEMORY_STACK 0b00000100 /* Process has a memory stack */
+#define PROC_FLAG_STACK        0b00000100 /* Process has a stack */
+#define PROC_FLAG_HEAP         0b00001000 /* Process has a heap */
 
 #define PROC_FLAG_TYPE_MASK    0b00000011
 
 #define PROC_FLAG_ERROR        0x80000000
 
+/* Process context */
 typedef struct context_t {
     uint32_t cr3;
     uint32_t gs;
@@ -46,14 +50,17 @@ typedef struct context_t {
     uint32_t eax;
 } context_t;
 
+/* Interrupt frame */
 typedef struct interrupt_frame_t {
     uint32_t eip;
     uint32_t cs;
     uint32_t eflags;
 } interrupt_frame_t;
 
+/* Process */
 typedef struct process_t process_t;
 
+/* Process */
 struct process_t {
     context_t context;
     interrupt_frame_t frame;
@@ -63,30 +70,27 @@ struct process_t {
     heap_t heap;
     void* exe;
     size_t exe_size;
+    void* stack;
     size_t ticks; /* quantum */
     process_t* next;
     process_t* prev;
 };
 
-typedef struct procman_t {
-    process_t* head;
-    process_t* tail;
-    process_t* current;
-    size_t count;
-} procman_t;
-
+/* Process entry point */
 typedef void (*process_entry_fn_t)(void);
 
-/* Create and add process to procman */
-int process_create(procman_t* man, process_t** proc);
+/* Create process 
+ proc: The process to create 
+ Returns: non-zero if success, otherwise 0. */
+int process_create(process_t** proc);
 
-/* Remove and free process from procman */
-void process_destroy(procman_t* man, process_t* proc);
+/* Destroy process 
+ proc: The process to destroy */
+void process_destroy(process_t* proc);
 
-/* Select the next process */
-process_t* process_next(procman_t* man, process_t* proc);
-
-/* Update process ticks, check if a process switch is needed */
+/* Update process
+ proc: The process to update
+ Returns: non-zero if process is done, otherwise returns 0 */
 int process_update(process_t* proc);
 
 #endif
