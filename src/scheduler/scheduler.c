@@ -42,21 +42,28 @@ static void idle_proc(void);
 static void cleanup_proc(void);
 
 void scheduler_init(void) {
+    process_t* kinit = NULL;
+    process_t* idle = NULL;
+
+    scheduler.count = 0;
+    scheduler.current = NULL;
+    scheduler.head = NULL;
+    scheduler.tail = NULL;
 
     /* Create the kernel process */
-    process_t* kinit = create_proc(NULL, PROC_FLAG_KERNEL);
+    kinit = create_proc(NULL, PROC_FLAG_KERNEL);
     if (kinit == NULL) {
         return;
     }
-
-    /* Set the current process to the (this) kernel process */
-    scheduler.current = kinit;
     
     /* Create the idle process */
-    process_t* idle1 = create_proc(idle_proc, PROC_FLAG_KERNEL | PROC_FLAG_STACK);
-    if (idle1 == NULL) {
+    idle = create_proc(idle_proc, PROC_FLAG_KERNEL | PROC_FLAG_STACK);
+    if (idle == NULL) {
         return;
     }
+
+    /* Set the current process to (this) kernel process */
+    scheduler.current = kinit;
 
     /* Locks */
     spinlock_release(&llist_append_lock);
@@ -64,7 +71,7 @@ void scheduler_init(void) {
 
     /* Setup timer */
     pit_set_handler(cswitch_handler);
-    pit_set_freq(1000); /* 50Hz */
+    pit_set_freq(1000); /* 1000Hz = 1ms period */
     pit_enable();
 
 	kprint("[SCHEDULER] Init OK\n");
