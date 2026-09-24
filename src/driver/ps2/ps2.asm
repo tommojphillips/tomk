@@ -72,6 +72,10 @@ ps2_init:
 
     ret
 
+; ps/2 int handler
+; esp+0 = eip
+; esp+4 = cs
+; esp+8 = eflags
 ps2_int_handler:
     pusha
 
