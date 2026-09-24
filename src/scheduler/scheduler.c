@@ -21,6 +21,8 @@
 #include <process.h>
 #include <gdt.h>
 #include <cswitch.h>
+#include <critsec.h>
+#include <spinlock.h>
 
 #define DEFAULT_STACK (1*1024*1024)
 
@@ -29,6 +31,9 @@
 
 /* Global scheduler instance */
 static scheduler_t scheduler;
+
+static spinlock_t llist_append_lock;
+static spinlock_t llist_remove_lock;
 
 static process_t* create_proc(process_entry_fn_t entry, uint32_t flags);
 static void destroy_proc(process_t* proc, int wait_self_destroy);
@@ -52,6 +57,10 @@ void scheduler_init(void) {
     if (idle1 == NULL) {
         return;
     }
+
+    /* Locks */
+    spinlock_release(&llist_append_lock);
+    spinlock_release(&llist_remove_lock);
 
     /* Setup timer */
     pit_set_handler(cswitch_handler);
@@ -190,8 +199,10 @@ static process_t* create_proc(process_entry_fn_t entry, uint32_t flags) {
     }
 
 	kdprint("[SCHEDULER] Process created pid=%u flags=%u\n", proc->id, flags);
-    
+
     /* Append process to list */
+    critsec_enter();
+    spinlock_acquire(&llist_append_lock);
     proc->next = NULL;
     proc->prev = scheduler.tail;
     if (scheduler.tail != NULL) {
@@ -201,17 +212,21 @@ static process_t* create_proc(process_entry_fn_t entry, uint32_t flags) {
         scheduler.head = proc;
     }
     scheduler.tail = proc;
+    spinlock_release(&llist_append_lock);
+    critsec_leave();
 
     return proc;
 }
-
 static void destroy_proc(process_t* proc, int wait_self_destroy) {
-
+    process_t* current = scheduler.current;
+    
     if (proc == NULL) {
         return;
     }
     
     /* Remove process from list */
+    critsec_enter();
+    spinlock_acquire(&llist_remove_lock);
     if (proc->prev != NULL) {
         proc->prev->next = proc->next;
     }
@@ -226,6 +241,11 @@ static void destroy_proc(process_t* proc, int wait_self_destroy) {
     }
     proc->next = NULL;
     proc->prev = NULL;
+    if (current == proc) {
+        scheduler.current = NULL;
+    }
+    spinlock_release(&llist_remove_lock);
+    critsec_leave();
 
     kdprint("[SCHEDULER] Process destroyed pid=%u flags=%u\n", proc->id, proc->flags);
 
@@ -255,9 +275,8 @@ static void destroy_proc(process_t* proc, int wait_self_destroy) {
     /* Destroy process */
     process_destroy(proc);
 
-    if (wait_self_destroy && scheduler.current == proc) {
-        /* We are unloading our self. Wait until we die */
-        scheduler.current = NULL;
+    /* If we are unloading our self, wait until we die */
+    if (wait_self_destroy && current == proc) {
         halt();
     }
 }
