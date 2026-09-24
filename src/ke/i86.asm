@@ -6,8 +6,6 @@ BITS 32
 
 extern idt
 extern gdt
-extern timer_ticks
-extern printf
 
 global inb
 global outb
@@ -32,7 +30,7 @@ global getcr3
 
 global spinwait
 global haltwait
-global wait_ms
+global halt
 
 Section .text
 
@@ -338,22 +336,7 @@ haltwait:
     hlt
     ret
 
-; Wait time in MS
-; esp+4 = duration in ms
-wait_ms:
-    push edx
-    
-    mov ecx, [timer_ticks]             ; start = timer_ticks;
-    mov edx, [esp+8]                   ; ticks = ms;
-
-.lp:
-    mov eax, [timer_ticks]             ; get current ticks
-    sub eax, ecx                       ; elapsed = timer_ticks - start
-    cmp eax, edx                       ; duration < elapsed ?
-    jnc .done                          ; yes, done
-    hlt                                ; no, wait for interrupt
-    jmp .lp                            ; An interrupt has woken us up; check time.
-
-.done:
-    pop edx
-    ret
+; halt cpu
+halt:
+    hlt
+    jmp halt

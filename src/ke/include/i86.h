@@ -111,6 +111,9 @@ extern void spinwait(uint32_t spins);
 /* Wait using hlt instruction */
 extern void haltwait(void);
 
+/* Halt CPU */
+extern void halt(void);
+
 /* Write INT Gate to IDT
  vector:   IDT index
  selector: int CS
