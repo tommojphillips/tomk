@@ -1,0 +1,75 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Make",
+            "type": "process",
+            "command": "make.exe",
+            "args": [
+                "-j",
+            ]
+        },
+        {
+            "label": "Position QEMU",
+            "type": "process",
+            "command": "powershell.exe",
+            "args": [
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "${workspaceFolder}/run-qemu.ps1"
+            ],
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "qemu",
+                "pattern": {
+                    "regexp": ".*"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": ".*"
+                }
+            }
+        },
+        {
+            "label": "Run QEMU",
+            "type": "process",
+            "command": "qemu-system-i386.exe",
+            "args": [
+                "-kernel",
+                "${workspaceFolder}/bin/debug/tomk.elf",
+                "-m",
+                "2048",
+                "-serial",
+                "stdio",
+                "-display",
+                "gtk,zoom-to-fit=on",
+                "-S",
+                "-gdb",
+                "tcp::1234"
+            ],
+            "isBackground": true,
+            "problemMatcher": {
+                "owner": "qemu",
+                "pattern": {
+                    "regexp": ".*"
+                },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": ".*",
+                    "endsPattern": ".*"
+                }
+            }
+        },
+        {
+            "label": "Make+QEMU",
+            "dependsOn": [
+                "Make",
+                "Position QEMU",
+                "Run QEMU",
+            ],
+            "dependsOrder": "sequence"
+        }
+    ]
+}

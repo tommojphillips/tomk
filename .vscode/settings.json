@@ -1,0 +1,33 @@
+{
+    "C_Cpp.errorSquiggles": "enabled",
+    "makefile.makefilePath": "makefile",
+    "makefile.makePath": "make.exe",
+     "makefile.configurations": [
+        {
+            "name": "Debug",
+            "makeArgs": [
+                "DEBUG=1 -j"
+            ]
+        },
+        {
+            "name": "Release ( -O2 )",
+            "makeArgs": [
+                "DEBUG=0 -j"
+            ]
+        }
+    ],
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": "markup.italic",
+                "settings": {
+                    "foreground": "#b6b6b6",
+                    "fontStyle": ""
+                }
+            }
+        ]
+    },
+    "files.associations": {
+        "*.asm": "nasm"
+    }
+}

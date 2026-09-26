@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "QEMU+GDB",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/debug/tomk.elf",
+            "cwd": "${workspaceFolder}",
+            "MIMode": "gdb",
+            "miDebuggerPath": "i686-elf-gdb.exe",
+            "stopAtEntry": false,
+            "preLaunchTask": "Make+QEMU",
+            "setupCommands": [
+                {
+                    "description": "Connect to QEMU",
+                    "text": "target remote localhost:1234",
+                    "ignoreFailures": false
+                }
+            ]
+        }
+    ]
+}
