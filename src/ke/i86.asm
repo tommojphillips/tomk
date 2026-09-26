@@ -4,8 +4,15 @@
 
 BITS 32
 
+; Debugging
+%define IDT_DBG 1
+
 extern idt
 extern gdt
+
+%ifdef IDT_DBG
+extern kdprintf
+%endif
 
 global inb
 global outb
@@ -34,6 +41,12 @@ global halt
 
 global enable_interrupts
 global disable_interrupts
+
+%ifdef IDT_DBG
+Section .rodata
+    dbg_set_int_gate_str db "[IDT] set_int_gate vector=0x%02X selector=0x%04X handler=0x%08X", 10, 0
+    dbg_set_task_gate_str db "[IDT] set_task_gate vector=0x%02X selector=0x%04X", 10, 0
+%endif
 
 Section .text
 
@@ -112,11 +125,27 @@ write_int_gate:
     push edi
 
     xor ecx, ecx
+    xor eax, eax
     mov cl, [esp+8+4]                            ; vector
     mov ax, [esp+8+8]                            ; selector
     mov esi, [esp+8+12]                          ; offset
     mov edi, idt                                 ; idt base
- 
+
+%ifdef IDT_DBG
+    push eax
+    push ecx
+
+    push esi
+    push eax
+    push ecx
+    push dbg_set_int_gate_str
+    call kdprintf
+    add esp, 16
+
+    pop ecx
+    pop eax
+%endif
+
     mov [edi+ecx*8+0], si                        ; offset lower 16bit
     mov [edi+ecx*8+2], ax                        ; selector
     mov byte [edi+ecx*8+4], 0
@@ -132,13 +161,26 @@ write_int_gate:
 ; esp+4 = vector
 ; esp+8 = TSS selector
 write_task_gate:
-    push ecx
     push edi
 
     xor ecx, ecx
-    mov cl, [esp+8+4]                            ; vector
-    mov ax,  [esp+8+8]                           ; TSS selector
+    mov cl, [esp+4+4]                            ; vector
+    mov ax,  [esp+4+8]                           ; TSS selector
     mov edi, idt                                 ; idt base
+
+%ifdef IDT_DBG
+    push eax
+    push ecx
+
+    push ax
+    push cx
+    push dbg_set_task_gate_str
+    call kdprintf
+    add esp, 12
+
+    pop ecx
+    pop eax
+%endif
 
     mov [edi+ecx*8+0], ax                        ; TSS selector
     mov word [edi+ecx*8+2], 0
@@ -147,7 +189,6 @@ write_task_gate:
     mov word [edi+ecx*8+6], 0
 
     pop edi
-    pop ecx
     ret
 
 ; Write tss descriptor to GDT

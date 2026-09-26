@@ -5,7 +5,6 @@
 BITS 32
 
 ; Debugging
-%define IDT_DBG 1
 
 extern ex_fault_handler   ; exceptions.c
 extern write_int_gate     ; i86.asm
@@ -59,30 +58,12 @@ idt_init:
     call write_int_gate
     add esp, 12
 
-%ifdef IDT_DBG
-    push exc_dbz
-    push gdt_selector_ke_code
-    push vec_dbz
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
-
     ; #UD
     push exc_ud                    ; offset
     push gdt_selector_ke_code      ; selector
     push vec_ud                    ; vector 
     call write_int_gate
     add esp, 12
-
-%ifdef IDT_DBG
-    push exc_ud
-    push gdt_selector_ke_code
-    push vec_ud
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
 
     ; #DF
     push exc_df                    ; offset
@@ -91,30 +72,12 @@ idt_init:
     call write_int_gate
     add esp, 12
 
-%ifdef IDT_DBG
-    push exc_df
-    push gdt_selector_ke_code
-    push vec_df
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
-
     ; #TS
     push exc_ts                    ; offset
     push gdt_selector_ke_code      ; selector
     push vec_ts                    ; vector 
     call write_int_gate
     add esp, 12
-
-%ifdef IDT_DBG
-    push exc_ts
-    push gdt_selector_ke_code
-    push vec_ts
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
 
     ; #NP
     push exc_np                    ; offset
@@ -123,30 +86,12 @@ idt_init:
     call write_int_gate
     add esp, 12
 
-%ifdef IDT_DBG
-    push exc_np
-    push gdt_selector_ke_code
-    push vec_np
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
-
     ; #SS
     push exc_ss                    ; offset
     push gdt_selector_ke_code      ; selector
     push vec_ss                    ; vector 
     call write_int_gate
     add esp, 12
-
-%ifdef IDT_DBG
-    push exc_ss
-    push gdt_selector_ke_code
-    push vec_ss
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
 
     ; #GP
     push exc_gp                    ; offset
@@ -155,30 +100,12 @@ idt_init:
     call write_int_gate
     add esp, 12
 
-%ifdef IDT_DBG
-    push exc_gp
-    push gdt_selector_ke_code
-    push vec_gp
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
-
     ; #PF
     push exc_pf                    ; offset
     push gdt_selector_ke_code      ; selector
     push vec_pf                    ; vector 
     call write_int_gate
     add esp, 12
-
-%ifdef IDT_DBG
-    push exc_pf
-    push gdt_selector_ke_code
-    push vec_pf
-    push dbg_set_gate_str
-    call kdprintf
-    add esp, 16
-%endif
 
     ret
 
