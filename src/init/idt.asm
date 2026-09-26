@@ -42,56 +42,56 @@ idt_init:
     
     ; #DBZ
     push exc_dbz                   ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_dbz                   ; vector 
     call write_int_gate
     add esp, 12
 
     ; #UD
     push exc_ud                    ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_ud                    ; vector 
     call write_int_gate
     add esp, 12
 
     ; #DF
     push exc_df                    ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_df                    ; vector 
     call write_int_gate
     add esp, 12
 
     ; #TS
     push exc_ts                    ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_ts                    ; vector 
     call write_int_gate
     add esp, 12
 
     ; #NP
     push exc_np                    ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_np                    ; vector 
     call write_int_gate
     add esp, 12
 
     ; #SS
     push exc_ss                    ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_ss                    ; vector 
     call write_int_gate
     add esp, 12
 
     ; #GP
     push exc_gp                    ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_gp                    ; vector 
     call write_int_gate
     add esp, 12
 
     ; #PF
     push exc_pf                    ; offset
-    push KCODE                     ; selector
+    push gdt_selector_ke_code      ; selector
     push vec_pf                    ; vector 
     call write_int_gate
     add esp, 12

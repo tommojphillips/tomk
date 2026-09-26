@@ -62,27 +62,31 @@ TSS_SIZE equ 0x68
 %include "src\include\common.inc"
 
 Section .bss
-    align 8, db 0
-    tss resb TSS_SIZE
+    align 8
+    ke_tss resb TSS_SIZE
 
 Section .text
 
 tss_init:
 
-    ; Write TSS0
-    push tss                ; base
-    push 10001001b          ; access P=1 DPL=00 S=0 TYPE=1001 (386 Available TSS)
-    push TSS_SIZE-1         ; limit
-    push KTSS               ; selector 
+    ;
+    ; Kernel TSS
+    ;
+
+    ; Write TSS
+    push ke_tss                                  ; base
+    push 10001001b                               ; access P=1 DPL=00 S=0 TYPE=1001 (386 Available TSS)
+    push TSS_SIZE-1                              ; limit
+    push gdt_selector_ke_tss                     ; selector 
     call write_tss_descriptor
     add esp, 16
 
     ; Load TR
-    mov ax, KTSS            ; tss0
+    mov ax, gdt_selector_ke_tss                  ; tss0
     ltr ax
 
-    ; setup ring0 stack
-    mov dword [tss+TSS.esp0], kstack_top
-    mov word [tss+TSS.ss0], KSTACK
+    ; Setup kernel stack
+    mov dword [ke_tss+TSS.esp0], kstack_top
+    mov word [ke_tss+TSS.ss0], gdt_selector_ke_stack
 
     ret

@@ -5,23 +5,23 @@
 BITS 32
 
 global gdt_init
-global KCODE
-global KDATA
-global KSTACK
-global KTSS
-global UCODE
-global UDATA
-global USTACK
+global gdt_selector_ke_code
+global gdt_selector_ke_data
+global gdt_selector_ke_stack
+global gdt_selector_ke_tss
+global gdt_selector_user_code
+global gdt_selector_user_data
+global gdt_selector_user_stack
 global gdt
 
-KCODE   equ gdt_kcode  - gdt       ; kernel code segment
-KDATA   equ gdt_kdata  - gdt       ; kernel data segment
-KSTACK  equ gdt_kstack - gdt       ; kernel stack segment
-KTSS    equ gdt_tss    - gdt       ; Kernel tss segment
+gdt_selector_ke_code    equ gdt_kcode  - gdt       ; kernel code segment
+gdt_selector_ke_data    equ gdt_kdata  - gdt       ; kernel data segment
+gdt_selector_ke_stack   equ gdt_kstack - gdt       ; kernel stack segment
+gdt_selector_ke_tss     equ gdt_tss    - gdt       ; Kernel tss segment
 
-UCODE   equ (gdt_ucode  - gdt) | 3 ; User code segment
-UDATA   equ (gdt_udata  - gdt) | 3 ; User data segment
-USTACK  equ (gdt_ustack - gdt) | 3 ; User stack segment
+gdt_selector_user_code  equ (gdt_ucode  - gdt) | 3 ; User code segment
+gdt_selector_user_data  equ (gdt_udata  - gdt) | 3 ; User data segment
+gdt_selector_user_stack equ (gdt_ustack - gdt) | 3 ; User stack segment
 
 Section .data
 
@@ -101,14 +101,14 @@ gdt_init:
     lgdt [gdt_descriptor]
     
     ; Reload es/ds/fs/gs
-    mov ax, KDATA
+    mov ax, gdt_selector_ke_data
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
 
     ; Reload ss
-    mov ax, KSTACK
+    mov ax, gdt_selector_ke_stack
     mov ss, ax
 
     ret

@@ -71,7 +71,7 @@ pit_set_handler:
 
     ; Write interrupt gate IDT
     push eax                                     ; offset
-    push KCODE                                   ; selector
+    push gdt_selector_ke_code                    ; selector
     push PIC_BASE+IRQ0                           ; vector 
     call write_int_gate
     add esp, 12

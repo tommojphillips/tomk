@@ -2,11 +2,11 @@
 ; Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
 ;
 
-extern KCODE                            ; Kernelspace code segment
-extern KDATA                            ; Kernelspace data segment
-extern KSTACK                           ; Kernelspace stack segment
-extern KTSS                             ; Kernelspace tss
+extern gdt_selector_ke_code            ; Kernelspace code segment
+extern gdt_selector_ke_data            ; Kernelspace data segment
+extern gdt_selector_ke_stack           ; Kernelspace stack segment
+extern gdt_selector_ke_tss             ; Kernelspace tss
 
-extern UCODE                            ; Userspace code segment
-extern UDATA                            ; Userspace data segment
-extern USTACK                           ; Userspace stack segment
+extern gdt_selector_user_code          ; Userspace code segment
+extern gdt_selector_user_data          ; Userspace data segment
+extern gdt_selector_user_stack         ; Userspace stack segment

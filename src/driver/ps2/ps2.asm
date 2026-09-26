@@ -61,7 +61,7 @@ ps2_init:
 
     ; IRQ 1
     push ps2_int_handler               ; offset
-    push KCODE                         ; selector    
+    push gdt_selector_ke_code          ; selector    
     push PIC_BASE+IRQ1                 ; vector 
     call write_int_gate
     add esp, 12
