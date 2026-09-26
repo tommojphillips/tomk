@@ -32,6 +32,9 @@ global spinwait
 global haltwait
 global halt
 
+global enable_interrupts
+global disable_interrupts
+
 Section .text
 
 ; inb;

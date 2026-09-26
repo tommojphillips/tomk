@@ -104,8 +104,7 @@ extern uint32_t getcr3(void);
  Returns CR3 after assignment */
 extern uint32_t setcr3(uint32_t value);
 
-/* Spin Wait CPU x amount of times
- spins: */
+/* Spin Wait CPU x amount of times */
 extern void spinwait(uint32_t spins);
 
 /* Wait using hlt instruction */
@@ -113,6 +112,12 @@ extern void haltwait(void);
 
 /* Halt CPU */
 extern void halt(void);
+
+/* Enable interrupts */
+extern void enable_interrupts(void);
+
+/* Disable interrupts */
+extern void disable_interrupts(void);
 
 /* Write INT Gate to IDT
  vector:   IDT index
