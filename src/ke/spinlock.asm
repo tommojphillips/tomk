@@ -13,18 +13,14 @@ global spinlock_release
 ; esp+4 = lock pointer
 spinlock_acquire:
     push edx
-
-    mov edx, [esp+4+4]                           ; lock pointer
-    
+    mov edx, [esp+4+4]                           ; lock pointer    
     test edx, edx                                ; lock == NULL?
     jz .done
-
 .spin:
-    mov eax, 0                                   ; expecting unlocked
-    mov ecx, 1                                   ; set locked
-    lock cmpxchg [edx], ecx
-    jnz .spin
-
+    mov eax, 0                                   ; expecting unlocked (0)
+    mov ecx, 1                                   ; set locked (1)
+    lock cmpxchg [edx], ecx                      ; if (lock->locked == 0) lock->locked = 1
+    jnz .spin                                    ; spin until lock->locked == 0
 .done:
     pop edx
     ret
@@ -35,6 +31,6 @@ spinlock_release:
     mov eax, [esp+4]                             ; lock pointer    
     test eax, eax                                ; lock == NULL?
     jz .done
-    mov dword [eax], 0
+    mov dword [eax], 0                           ; lock->locked = 0
 .done:
     ret
