@@ -151,10 +151,8 @@ exc_handler:
     add esp, 8
 
     add esp, 18*4                      ; pop exception state
-
-    push 0
-    call kpanic
-    add esp, 4
+    
+    hlt
 
     iret
 
