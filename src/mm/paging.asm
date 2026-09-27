@@ -66,7 +66,7 @@ _map_page:
 
 .loc_pde:
     push esi                   
-    call pg_loc_pde                              ; get pde pointer in EAX
+    call pg_loc_pde                              ; get pde pointer
     add esp, 4
 
     test dword [eax], P                          ; pde present?
@@ -82,7 +82,7 @@ _map_page:
 
 .loc_pte:
     push esi
-    call pg_loc_pte                              ; get PTE pointer in EAX
+    call pg_loc_pte                              ; get pte pointer
     add esp, 4
 
 .build_pte:
@@ -113,7 +113,7 @@ _unmap_page:
 
 .loc_pde:
     push esi                   
-    call pg_loc_pde                              ; get PDE pointer in EAX
+    call pg_loc_pde                              ; get pde pointer
     add esp, 4
 
     test dword [eax], P                          ; pde present?
@@ -121,7 +121,7 @@ _unmap_page:
 
 .loc_pte:
     push esi
-    call pg_loc_pte                              ; get PTE pointer in EAX
+    call pg_loc_pte                              ; get pte pointer
     add esp, 4
 
     test dword [eax], P                          ; pte present?
@@ -300,14 +300,14 @@ pg_virt2phys:
     mov esi, [ebp+8]                             ; virtual_address
     
     push esi                                     ; virtual_address
-    call pg_loc_pde                              ; locate pde
+    call pg_loc_pde                              ; get pde pointer
     add esp, 4
     
     test dword [eax], P                          ; pde present?
     jz .err                                      ; no, page not mapped; done
     
     push esi                                     ; virtual_address     
-    call pg_loc_pte                              ; locate pte
+    call pg_loc_pte                              ; get pte pointer
     add esp, 4
 
     test dword [eax], P                          ; pte present?
@@ -363,7 +363,7 @@ pg_chgpriv:
 
 .lp:
     push esi                                     ; virtual_address
-    call pg_loc_pte                              ; locate pte
+    call pg_loc_pte                              ; get pte pointer
     add esp, 4
 
     and [eax], ~(RW | US)                        ; clear RW/US bits in pte

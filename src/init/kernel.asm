@@ -57,9 +57,9 @@ kernel_init:
     call pg_unmap                                ; ummap .boot section identity map
     add esp, 8
     
-    call gdt_init                                ; setup gdt
-    call idt_init                                ; setup idt, int handlers
-    call tss_init                                ; setup tss
+    call gdt_init                                ; setup gdt, reload segment registers
+    call idt_init                                ; setup idt, write int handlers
+    call tss_init                                ; setup tss, load tr
     call pic_init                                ; setup pic
     call pit_init                                ; setup pit
     call ps2_init                                ; setup ps/2

@@ -16,19 +16,19 @@
 #include <scheduler.h>
 #include <process.h>
 
-#define vec_dbz     0x00 /* Divide by zero interrupt */
-#define vec_trap    0x01 /* Trap interrupt */
+#define vec_dbz     0x00 /* Fault - Division error */
+#define vec_trap    0x01 /* Trap  - Debug */
 #define vec_nmi     0x02 /* Non-maskable interrupt */
-#define vec_int3    0x03 /* Breakpoint interrupt */
-#define vec_of      0x04 /* Overflow interrupt */
-#define vec_bound   0x05 /* Bound interrupt */
-#define vec_ud      0x06 /* Undefined exception */
-#define vec_df      0x08 /* Double-fault exception */
-#define vec_ts      0x0A /* Task-segment exception */
-#define vec_np      0x0B /* Not-present exception */
-#define vec_ss      0x0C /* Stack-segment exception */
-#define vec_gp      0x0D /* General-protection exception */
-#define vec_pf      0x0E /* Page-fault exception */
+#define vec_int3    0x03 /* Trap  - Breakpoint */
+#define vec_of      0x04 /* Trap  - Overflow */
+#define vec_bound   0x05 /* Fault - Bound range exceeded */
+#define vec_ud      0x06 /* Fault - Invalid opcode */
+#define vec_df      0x08 /* Abort - Double fault */
+#define vec_ts      0x0A /* Fault - Invalid TSS */
+#define vec_np      0x0B /* Fault - Segment not present */
+#define vec_ss      0x0C /* Fault - stack segment fault */
+#define vec_gp      0x0D /* Fault - General protection fault */
+#define vec_pf      0x0E /* Fault - Page fault */
 
 /* Unmapped write access */
 #define UNMAPPED_WRITE_ACCESS           0x00000001
