@@ -7,6 +7,7 @@
 #include <string.h>
 #include <tty.h>
 #include <uart.h>
+#include <critsec.h>
 
 #define MAX_BUFFER_SIZE 64
 
@@ -200,6 +201,8 @@ static int parse_number(const char* restrict* fmt) {
 }
 
 void vformat(printf_output_t* out, const char* restrict fmt, va_list args) {
+    int critsec = critsec_enter();
+
     int left = 0;
     char pad = 0;
     int width = 0;
@@ -336,6 +339,7 @@ void vformat(printf_output_t* out, const char* restrict fmt, va_list args) {
 
         fmt++;
     }
+    critsec_leave(critsec);
 }
 
 int vsprintf(char* restrict s, const char* restrict fmt, va_list args) {
