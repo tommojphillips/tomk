@@ -10,6 +10,4 @@ obj/
 bin/
 lib/
 
-.vscode/settings.json
-.vscode/launch.json
-.vscode/tasks.json
+output.txt
