@@ -208,8 +208,7 @@ static process_t* create_proc(process_entry_fn_t entry, uint32_t flags) {
 	kdprint("[SCHEDULER] Process created pid=%u flags=%u\n", proc->id, flags);
 
     /* Append process to list */
-    critsec_enter();
-    spinlock_acquire(&llist_append_lock);
+    int critsec = critsec_enter();
     proc->next = NULL;
     proc->prev = scheduler.tail;
     if (scheduler.tail != NULL) {
@@ -219,8 +218,7 @@ static process_t* create_proc(process_entry_fn_t entry, uint32_t flags) {
         scheduler.head = proc;
     }
     scheduler.tail = proc;
-    spinlock_release(&llist_append_lock);
-    critsec_leave();
+    critsec_leave(critsec);
 
     return proc;
 }
@@ -232,8 +230,7 @@ static void destroy_proc(process_t* proc, int wait_self_destroy) {
     }
     
     /* Remove process from list */
-    critsec_enter();
-    spinlock_acquire(&llist_remove_lock);
+    int critsec = critsec_enter();
     if (proc->prev != NULL) {
         proc->prev->next = proc->next;
     }
@@ -251,8 +248,7 @@ static void destroy_proc(process_t* proc, int wait_self_destroy) {
     if (current == proc) {
         scheduler.current = NULL;
     }
-    spinlock_release(&llist_remove_lock);
-    critsec_leave();
+    critsec_leave(critsec);
 
     kdprint("[SCHEDULER] Process destroyed pid=%u flags=%u\n", proc->id, proc->flags);
 

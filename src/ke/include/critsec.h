@@ -7,10 +7,10 @@
 
 /* Enter critical section 
  Disables interrupts */
-void critsec_enter(void);
+int critsec_enter(void);
 
 /* Leave critical section 
  Enables interrupts */
-void critsec_leave(void);
+void critsec_leave(int context);
 
 #endif
