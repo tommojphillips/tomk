@@ -22,13 +22,14 @@
  *                                                             | ----- Type (2 bits)
  *                                                             ------- Memory (1 bit)
  */
-#define PROC_FLAG_NONE         0b00000000
-#define PROC_FLAG_KERNEL       0b00000001 /* Process is executed in kernel mode */
-#define PROC_FLAG_USER         0b00000011 /* Process is executed in user mode */
-#define PROC_FLAG_STACK        0b00000100 /* Process has a stack */
-#define PROC_FLAG_HEAP         0b00001000 /* Process has a heap */
+#define PROC_FLAG_NONE         0
+#define PROC_FLAG_KERNEL       0x01 /* Process is executed in kernel mode */
+#define PROC_FLAG_USER         0x03 /* Process is executed in user mode */
+#define PROC_FLAG_STACK        0x04 /* Process has a stack */
+#define PROC_FLAG_HEAP         0x08 /* Process has a heap */
+#define PROC_SHARED_ADDR_SPACE 0x10 /* Process shares kernel address space */
 
-#define PROC_FLAG_TYPE_MASK    0b00000011
+#define PROC_FLAG_TYPE_MASK    0x03
 
 #define PROC_FLAG_ERROR        0x80000000
 
@@ -57,6 +58,9 @@ typedef struct interrupt_frame_t {
     uint32_t eflags;
 } interrupt_frame_t;
 
+/* Process entry point */
+typedef void (*process_entry_fn_t)(void);
+
 /* Process */
 typedef struct process_t process_t;
 
@@ -65,6 +69,7 @@ struct process_t {
     context_t context;
     interrupt_frame_t frame;
     size_t id;
+    process_entry_fn_t entry;
     uint32_t flags;
     vmm_t vmm;
     heap_t heap;
@@ -75,9 +80,6 @@ struct process_t {
     process_t* next;
     process_t* prev;
 };
-
-/* Process entry point */
-typedef void (*process_entry_fn_t)(void);
 
 /* Create process 
  proc: The process to create 
