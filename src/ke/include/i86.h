@@ -22,7 +22,6 @@ typedef struct cpu_state_t {
     uint32_t cr3;
 
     uint32_t es;
-    uint32_t cs;
     uint32_t ss;
     uint32_t ds;
     uint32_t fs;
