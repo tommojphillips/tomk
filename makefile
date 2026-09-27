@@ -26,7 +26,6 @@ CFLAGS := \
 	-ffreestanding \
 	-Wall \
 	-Wextra \
-	-march=i386 \
 	-MMD \
 	-MP
 
@@ -193,12 +192,6 @@ $(OUT_DIR)/$(OUT_FN).elf: $(LIBS) $(OUT_LINKER) $(OUT_DIR)
 		--start-group \
 		$(LIBS) \
 		--end-group
-
-ifeq ($(DEBUG),1)
-	@$(OBJCOPY) --only-keep-debug $@ $(OUT_DIR)/$(OUT_FN).sym
-	@$(OBJCOPY) --strip-debug $@
-	@echo $(OUT_DIR)/$(OUT_FN).sym
-endif
 
 	@echo $(OUT_DIR)/$(OUT_FN).map
 	@echo $@
