@@ -43,7 +43,10 @@ section .text
 
 ; kernel init
 kernel_init:
-    mov esp, kstack_top                          ; setup stack
+
+    ; setup stack
+    mov esp, kstack_top
+    xor ebp, ebp
 
     ; compute .boot_section size
     mov edx, sec_boot_end
