@@ -37,7 +37,7 @@ void tty_clear_screen(void) {
 	tty_row = 0;
 	tty_column = 0;
 	cursor_move(0, 0);
-	cursor_scroll(0, 0);
+	/*cursor_scroll(0, 0);*/
 }
 void tty_clear_line(size_t x, size_t y) {
 	for (size_t i = x; i < VGA_WIDTH; ++i) {
@@ -86,7 +86,8 @@ void tty_putc(char c) {
 	if (u) {
 		tty_column = 0;
 		if (++tty_row >= VGA_HEIGHT) {
-			cursor_scroll(tty_column, tty_row-VGA_HEIGHT+1);
+			/* cursor_scroll(tty_column, tty_row-VGA_HEIGHT+1); */
+			tty_row = 0;
 		}
 	}
 	cursor_move(tty_column, tty_row);
