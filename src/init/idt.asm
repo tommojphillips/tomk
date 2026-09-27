@@ -4,46 +4,34 @@
 
 BITS 32
 
-; Debugging
-
-extern ex_fault_handler   ; exceptions.c
-extern write_int_gate     ; i86.asm
-
-%ifdef IDT_DBG
-extern kdprintf
-%endif
+extern ex_fault_handler                          ; exceptions.c
+extern write_int_gate                            ; i86.asm
 
 global idt_init
-global idt
+global idt                                       ; idt
 
 %include "src\include\common.inc"
 
-vec_dbz     equ 0x00 ; Divide by zero interrupt
-vec_trap    equ 0x01 ; Trap interrupt
-vec_nmi     equ 0x02 ; Non-maskable interrupt
-vec_int3    equ 0x03 ; Breakpoint interrupt
-vec_of      equ 0x04 ; Overflow interrupt
-vec_bound   equ 0x05 ; Bound interrupt
-vec_ud      equ 0x06 ; Undefined exception
-vec_df      equ 0x08 ; Double-fault exception
-vec_ts      equ 0x0A ; Task-segment exception
-vec_np      equ 0x0B ; Not-present exception
-vec_ss      equ 0x0C ; Stack-segment exception
-vec_gp      equ 0x0D ; General-protection exception
-vec_pf      equ 0x0E ; Page-fault exception
+vec_de      equ 0x00                             ; Fault - Division error
+vec_db      equ 0x01                             ; Trap  - Debug
+vec_bp      equ 0x03                             ; Trap  - Breakpoint
+vec_of      equ 0x04                             ; Trap  - Overflow
+vec_br      equ 0x05                             ; Fault - Bound range exceeeded
+vec_ud      equ 0x06                             ; Fault - Invalid opcode
+vec_df      equ 0x08                             ; Abort - Double fault
+vec_ts      equ 0x0A                             ; Fault - Invalid TSS
+vec_np      equ 0x0B                             ; Fault - Segment not present
+vec_ss      equ 0x0C                             ; Fault - Stack segment fault
+vec_gp      equ 0x0D                             ; Fault - General protection fault
+vec_pf      equ 0x0E                             ; Fault - Page fault
 
 Section .bss
     idt resb 8*128
 
 Section .data
 idt_descriptor:
-    dw 0x3FF ; limit
-    dd idt   ; base
-
-%ifdef IDT_DBG
-Section .rodata
-    dbg_set_gate_str db "[IDT] set_gate vector=0x%02X selector=0x%04X handler=0x%08X", 10, 0
-%endif
+    dw 0x3FF                                     ; limit
+    dd idt                                       ; base
 
 Section .text
 
@@ -51,171 +39,195 @@ idt_init:
 
     lidt [idt_descriptor]
     
-    ; #DBZ
-    push exc_dbz                   ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_dbz                   ; vector 
+    ; #DE
+    push exc_de                                   ; offset
+    push gdt_selector_ke_code                     ; selector
+    push vec_de                                   ; vector 
     call write_int_gate
     add esp, 12
 
     ; #UD
-    push exc_ud                    ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_ud                    ; vector 
+    push exc_ud                                  ; offset
+    push gdt_selector_ke_code                    ; selector
+    push vec_ud                                  ; vector 
     call write_int_gate
     add esp, 12
 
     ; #DF
-    push exc_df                    ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_df                    ; vector 
+    push exc_df                                  ; offset
+    push gdt_selector_ke_code                    ; selector
+    push vec_df                                  ; vector 
     call write_int_gate
     add esp, 12
 
     ; #TS
-    push exc_ts                    ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_ts                    ; vector 
+    push exc_ts                                  ; offset
+    push gdt_selector_ke_code                    ; selector
+    push vec_ts                                  ; vector 
     call write_int_gate
     add esp, 12
 
     ; #NP
-    push exc_np                    ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_np                    ; vector 
+    push exc_np                                  ; offset
+    push gdt_selector_ke_code                    ; selector
+    push vec_np                                  ; vector 
     call write_int_gate
     add esp, 12
 
     ; #SS
-    push exc_ss                    ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_ss                    ; vector 
+    push exc_ss                                  ; offset
+    push gdt_selector_ke_code                    ; selector
+    push vec_ss                                  ; vector 
     call write_int_gate
     add esp, 12
 
     ; #GP
-    push exc_gp                    ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_gp                    ; vector 
+    push exc_gp                                  ; offset
+    push gdt_selector_ke_code                    ; selector
+    push vec_gp                                  ; vector 
     call write_int_gate
     add esp, 12
 
     ; #PF
-    push exc_pf                    ; offset
-    push gdt_selector_ke_code      ; selector
-    push vec_pf                    ; vector 
+    push exc_pf                                  ; offset
+    push gdt_selector_ke_code                    ; selector
+    push vec_pf                                  ; vector 
     call write_int_gate
     add esp, 12
 
     ret
 
-; EXCEPTION HANDLERS
-
+; Common fault handler
 ; esp+0  = vector
 ; esp+4  = error code
 ; esp+8  = eip
 ; esp+12 = cs
 ; esp+16 = eflags
-exc_handler:    
-    xchg edi, [esp+0]                  ; save edi; save vector in edi
-    push esi                           ; save esi
-    push ebp                           ; save ebp
-    push esp                           ; save esp
-    push ebx                           ; save ebx
-    push edx                           ; save edx
-    push ecx                           ; save ecx
-    push eax                           ; save eax
+; esp+20 = esp2 ( if priv change )
+; esp+24 = ss2  ( if priv change )
+exc_handler:
+    xchg edi, [esp+0]                            ; edi <-> *vector 
+    push esi                                     ; save esi
+    push ebp                                     ; save ebp
+    push esp                                     ; save esp
+    push ebx                                     ; save ebx
+    push edx                                     ; save edx
+    push ecx                                     ; save ecx
+    push eax                                     ; save eax
     
-    push gs                            ; save gs
-    push fs                            ; save fs
-    push ds                            ; save ds
-    push ss                            ; save ss
-    push cs                            ; save cs
-    push es                            ; save es
+    push gs                                      ; save gs
+    push fs                                      ; save fs
+    push ds                                      ; save ds
+    push ss                                      ; save ss
+    push es                                      ; save es
 
     push eax
     mov eax, cr3
-    xchg eax, [esp+0]                  ; save cr3
+    xchg eax, [esp+0]                            ; save cr3
 
     push eax
     mov eax, cr2
-    xchg eax, [esp+0]                  ; save cr2
+    xchg eax, [esp+0]                            ; save cr2
 
     push eax
     mov eax, cr0
-    xchg eax, [esp+0]                  ; save cr0
+    xchg eax, [esp+0]                            ; save cr0
 
-    push esp                           ; exception state
-    push edi                           ; exception vector
+    push esp                                     ; state
+    push edi                                     ; vector
     call ex_fault_handler
     add esp, 8
 
-    add esp, 18*4                      ; pop exception state
+    add esp, 18*4                                ; pop state + frame
     
     hlt
 
     iret
 
-; esp+0 = eip
-; esp+4 = cs
-; esp+8 = eflags
-exc_dbz:
-    push 0                             ; fake error code
-    push vec_dbz
+; Division fault handler
+; esp+0  = eip
+; esp+4  = cs
+; esp+8  = eflags
+; esp+12 = esp2 ( if priv change )
+; esp+16 = ss2  ( if priv change )
+exc_de:
+    push 0                                       ; normalize exception frame
+    push vec_de
     jmp exc_handler
 
-; esp+0 = eip
-; esp+4 = cs
-; esp+8 = eflags
+; Invalid opcode fault handler
+; esp+0  = eip
+; esp+4  = cs
+; esp+8  = eflags
+; esp+12 = esp2 ( if priv change )
+; esp+16 = ss2  ( if priv change )
 exc_ud:
-    push 0                             ; fake error code
+    push 0                                       ; normalize exception frame
     push vec_ud
     jmp exc_handler
 
-; esp+0  = error code
+; Double fault handler
+; esp+0  = error code (zero)
 ; esp+4  = eip
 ; esp+8  = cs
 ; esp+12 = eflags
+; esp+16 = esp2 ( if priv change )
+; esp+20 = ss2  ( if priv change )
 exc_df:
     push vec_df
     jmp exc_handler
 
+; Invalid TSS fault handler
 ; esp+0  = error code
 ; esp+4  = eip
 ; esp+8  = cs
 ; esp+12 = eflags
+; esp+16 = esp2 ( if priv change )
+; esp+20 = ss2  ( if priv change )
 exc_ts:
     push vec_ts
     jmp exc_handler
 
+; Segment not present fault handler
 ; esp+0  = error code
 ; esp+4  = eip
 ; esp+8  = cs
 ; esp+12 = eflags
+; esp+16 = esp2 ( if priv change )
+; esp+20 = ss2  ( if priv change )
 exc_np:
     push vec_np
     jmp exc_handler
 
+; Stack segment fault handler
 ; esp+0  = error code
 ; esp+4  = eip
 ; esp+8  = cs
 ; esp+12 = eflags
+; esp+16 = esp2 ( if priv change )
+; esp+20 = ss2  ( if priv change )
 exc_ss:
     push vec_ss
     jmp exc_handler
 
+; General protection fault handler
 ; esp+0  = error code
 ; esp+4  = eip
 ; esp+8  = cs
 ; esp+12 = eflags
+; esp+16 = esp2 ( if priv change )
+; esp+20 = ss2  ( if priv change )
 exc_gp:
     push vec_gp
     jmp exc_handler
 
+; Page fault handler
 ; esp+0  = error code
 ; esp+4  = eip
 ; esp+8  = cs
 ; esp+12 = eflags
+; esp+16 = esp2 ( if priv change )
+; esp+20 = ss2  ( if priv change )
 exc_pf:
     push vec_pf
     jmp exc_handler
