@@ -9,6 +9,13 @@
 
 BITS 32
 
+; Debugging
+%define PG_DBG
+
+%ifdef PG_DBG
+extern kdprintf
+%endif
+
 global pg_map
 global pg_unmap
 global pg_flush
@@ -31,6 +38,13 @@ pg_pd:
     resb 4096
 pg_pt:
     resb 4096*1024
+
+%ifdef PG_DBG
+Section .rodata
+    dbg_map_str db "[PG] map cr3=%08X virt=%08X phys=%08X flags=%02X count=%u", 10, 0
+    dbg_unmap_str db "[PG] unmap cr3=%08X virt=%08X count=%u", 10, 0
+    dbg_chgpriv_str db "[PG] chgpriv cr3=%08X virt=%08X flags=%02X count=%u", 10, 0
+%endif
 
 Section .text
 
@@ -123,6 +137,18 @@ pg_map:
     mov ebp, esp                                 ; save frame ptr
     add ebp, 4                                   ; point frame ptr at params-4
 
+%ifdef PG_DBG
+    mov eax, cr3
+    push [ebp+16]
+    push [ebp+12]
+    push [ebp+8]
+    push [ebp+4]
+    push eax
+    push dbg_map_str
+    call kdprintf
+    add esp, 24
+%endif
+
     cmp dword [ebp+16], 0                        ; count == zero?
     jz .done                                     ; yes, dont map any pages
 
@@ -151,6 +177,16 @@ pg_unmap:
 
     mov esi, [esp+8+4]
     mov ebx, [esp+8+8]
+
+%ifdef PG_DBG
+    mov eax, cr3
+    push ebx
+    push esi
+    push eax
+    push dbg_unmap_str
+    call kdprintf
+    add esp, 16
+%endif
 
     test ebx, ebx                                ; count == zero?
     jz .done                                     ; yes, dont map any pages
@@ -271,6 +307,17 @@ pg_chgpriv:
     mov esi, [esp+12+4]
     mov ebx, [esp+12+8]
     mov edx, [esp+12+12]
+
+%ifdef PG_DBG
+    mov eax, cr3
+    push edx
+    push ebx
+    push esi
+    push eax
+    push dbg_chgpriv_str
+    call kdprintf
+    add esp, 20
+%endif
 
     and ebx, (RW | US)                           ; only keep RW/US
 
