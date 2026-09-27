@@ -20,7 +20,6 @@ static spinlock_t tty_lock;
 static void cursor_enable(void);
 static void cursor_move(size_t x, size_t y);
 static void cursor_scroll(size_t x, size_t y);
-static void pute(char c, uint8_t color, size_t x, size_t y);
 
 void tty_init(void) {
 	tty_color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
@@ -45,7 +44,7 @@ void tty_clear_screen(void) {
 }
 void tty_clear_line(size_t x, size_t y) {
 	for (size_t i = x; i < VGA_WIDTH; ++i) {
-		pute(' ', tty_color, i, y);
+		tty_pute(' ', tty_color, i, y);
 	}
 }
 void tty_set_position(size_t x, size_t y) {
@@ -73,7 +72,7 @@ void tty_putc(char c) {
 	bool u = false;
 
 	if (!r) {
-		pute(c, tty_color, tty_column, tty_row);
+		tty_pute(c, tty_color, tty_column, tty_row);
 	}
 	
 	if (c == '\n' && tty_column < VGA_WIDTH) {
@@ -139,7 +138,8 @@ static void cursor_scroll(size_t x, size_t y) {
 	
 	spinlock_release(&tty_lock);
 }
-static void pute(char c, uint8_t color, size_t x, size_t y) {
+
+void tty_pute(char c, uint8_t color, size_t x, size_t y) {
 	const size_t index = y * VGA_WIDTH + x;
 	((uint16_t*)VGA_MEMORY)[index] = vga_entry(c, color);
 }

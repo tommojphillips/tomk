@@ -24,7 +24,7 @@ void tty_get_position(size_t* x, size_t* y);
 void tty_set_color(uint8_t color);
 
 /* TTY Output entry (char+attribute) at x,y */
-void tty_put_entry_at(char c, uint8_t color, size_t x, size_t y);
+void tty_pute(char c, uint8_t color, size_t x, size_t y);
 
 /* Output character to tty.
 c: the character to output */
