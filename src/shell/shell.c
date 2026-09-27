@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <pmm.h>
 #include <vmm.h>
@@ -67,7 +68,8 @@ static kshell_command_t kshell_commands[] = {
 void kshell(void) {
 	char buffer[32+1] = { 0 };
 	size_t i = 0;
-	size_t x, y;
+	size_t x = 0;
+	size_t y = 0;
 
 	kprint("\n>");
 	tty_get_position(&x, &y);
@@ -279,33 +281,29 @@ static int kshell_command_pagetables(void* userparam) {
 }
 static int kshell_command_proc_list(void* userparam) {
 	(void)userparam;
-	process_t* head = scheduler_get_head();
+	process_t* head = scheduler_head();
 	for (process_t* proc = head; proc != NULL; proc = proc->next) {
 		kprintf("proc%u\n", proc->id);
 	}
 	return 0; /* Success */
 }
 static int kshell_command_proc_kill(void* userparam) {
-	(void)userparam;
-
-	unsigned int id = ((char*)userparam)[0] - '0';
-	process_t* head = scheduler_get_head();
+	unsigned int id = strtoul(userparam, NULL, 0);
+	process_t* head = scheduler_head();
 	for (process_t* proc = head; proc != NULL; proc = proc->next) {
 		if (proc->id == id) {
-			scheduler_unload_kprocess(proc);
+			scheduler_unload_kprocess(proc, 1);
 			return 0; /* Success */
 		}
 	}
 	return 1; /* Failure */
 }
 static int kshell_command_proc_fork(void* userparam) {
-	(void)userparam;
-
-	unsigned int id = ((char*)userparam)[0] - '0';
-	process_t* head = scheduler_get_head();
+	unsigned int id = strtoul(userparam, NULL, 0);
+	process_t* head = scheduler_head();
 	for (process_t* proc = head; proc != NULL; proc = proc->next) {
 		if (proc->id == id) {
-			scheduler_load_kprocess(proc->frame.eip);
+			scheduler_load_kprocess((process_entry_fn_t)proc->frame.eip);
 			return 0; /* Success */
 		}
 	}
@@ -320,9 +318,9 @@ static void print_memory_stats(int c) {
 	kprint("\n       |    Physical Memory |\n");
 	switch (c) {
 		case 0: /* pages */		
-		kprint("usable | %18u pages |\n", pm_usable);
-		kprint("used   | %18u pages |\n", pm_used);
-		kprint("free   | %18u pages |\n", pm_free);
+		kprint("usable | %12u pages |\n", pm_usable);
+		kprint("used   | %12u pages |\n", pm_used);
+		kprint("free   | %12u pages |\n", pm_free);
 		break;
 		
 		case 1: /* kb */
@@ -395,7 +393,7 @@ static void alloctestu(void) {
 	void* ptrs[8192] = { 0 };
 	kprint("allocating....\n");
 	for (size_t i = 0; i < (sizeof(ptrs) / sizeof(ptrs[0])); i++) {
-		ptrs[i] = pmalloc(0x40000);
+		ptrs[i] = kmalloc(0x40000);
 		if (ptrs[i]) {
 			memset(ptrs[i], 0, 0x40000);
 		}
@@ -410,7 +408,7 @@ static void alloctestu(void) {
 	
 	kprint("freeing....\n");
 	for (size_t i = 0; i < (sizeof(ptrs) / sizeof(ptrs[0])); i++) {
-		pfree(ptrs[i]);
+		kfree(ptrs[i]);
 	}
 
 	print_memory_stats(0);
