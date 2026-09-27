@@ -229,21 +229,20 @@ pg_virt2phys:
     push esi
 
     mov esi, [esp+4+4]                           ; virtual_address
-    xor ecx, ecx                                 ; ret_val
     
     push esi                                     ; virtual_address
     call pg_loc_pde                              ; locate pde
     add esp, 4
     
     test dword [eax], P                          ; pde present?
-    jz .done                                     ; no, page not mapped; done
+    jz .err                                      ; no, page not mapped; done
     
     push esi                                     ; virtual_address     
     call pg_loc_pte                              ; locate pte
     add esp, 4
 
     test dword [eax], P                          ; pte present?
-    jz .done                                     ; no, page not mapped; done
+    jz .err                                      ; no, page not mapped; done
     
     mov eax, [eax]                               ; pte
     and eax, 0xFFFFF000                          ; get page_frame
@@ -251,9 +250,13 @@ pg_virt2phys:
     and ecx, (PAGE_SIZE-1)                       ; get page_offset
     or ecx, eax                                  ; set phys_addr; (page_frame | page_offset)
 
+.ok:
+    mov eax, ecx                                 ; return phys_addr
+    jmp .done
+.err:
+    xor eax, eax                                 ; return 0 (error)
 .done:
     pop esi
-    mov eax, ecx                                 ; return phys_addr
     ret
 
 ; change access permissions
