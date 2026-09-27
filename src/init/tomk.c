@@ -50,11 +50,12 @@ void kmain(void) {
 	scheduler_init();
 
 	/* Spin up kshell process */
-	kprint("Starting KSHELL...\n");
-	scheduler_load_kprocess((uintptr_t)kshell);
-	
-	/* Unload ourself */
-	scheduler_unload_kprocess(scheduler_current(), 0);
+	kprint("Starting kshell...\n");
+	scheduler_load_kprocess(kshell);
+
+	/* Unload self */
+	kprint("Unloading kinit_proc...\n");
+	scheduler_unload_kprocess(scheduler_current(), 1);
 }
 
 void kpanic(const char* fmt, ...) {
