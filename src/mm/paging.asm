@@ -88,7 +88,7 @@ _map_page:
 .build_pte:
     mov ecx, edi                                 ; physical_address
     and ecx, 0xFFFFF000                          ; get physical_page_frame
-    and ebx, (PAGE_SIZE-1)                       ; get flags
+    and ebx, 0x00000FFF                          ; get flags
     or ebx, P                                    ; set present bit
     or ecx, ebx                                  ; set flags
     mov [eax], ecx                               ; write pte
