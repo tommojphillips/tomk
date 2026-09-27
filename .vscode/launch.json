@@ -16,6 +16,11 @@
                     "description": "Connect to QEMU",
                     "text": "target remote localhost:1234",
                     "ignoreFailures": false
+                },
+                {
+                    "description": "Set disassembly syntax to intel",
+                    "text": "set disassembly-flavor intel",
+                    "ignoreFailures": false
                 }
             ]
         }
