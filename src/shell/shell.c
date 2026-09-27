@@ -42,6 +42,7 @@ static int kshell_command_pagetables(void* userparam);
 static int kshell_command_proc_list(void* userparam);
 static int kshell_command_proc_kill(void* userparam);
 static int kshell_command_proc_fork(void* userparam);
+static int kshell_command_proctest(void* userparam);
 
 static void print_memory_stats(int c);
 static void print_input(void);
@@ -63,6 +64,7 @@ static kshell_command_t kshell_commands[] = {
 	{ "procls", kshell_command_proc_list },
 	{ "prockill", kshell_command_proc_kill },
 	{ "procfork", kshell_command_proc_fork },
+	{ "proctest", kshell_command_proctest },
 };
 
 void kshell(void) {
@@ -309,7 +311,11 @@ static int kshell_command_proc_fork(void* userparam) {
 	}
 	return 1; /* Failure */
 }
-
+static int kshell_command_proctest(void* userparam) {
+	(void)userparam;
+	extern void proctest(void);
+	proctest();
+}
 static void print_memory_stats(int c) {
 	size_t pm_usable = pmm_get_usable();
 	size_t pm_used = pmm_get_used();
