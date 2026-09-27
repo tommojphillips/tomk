@@ -17,7 +17,7 @@
                 "-ExecutionPolicy",
                 "Bypass",
                 "-File",
-                "${workspaceFolder}/run-qemu.ps1"
+                "${workspaceFolder}/scripts/run-qemu.ps1"
             ],
             "isBackground": true,
             "problemMatcher": {
