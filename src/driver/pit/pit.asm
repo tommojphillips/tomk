@@ -22,6 +22,7 @@ global pit_set_handler
 global pit_enable
 global pit_disable
 global pit_set_freq
+global pit_send_eoi
 
 IRQ0        equ 0
 PIT_CLOCK   equ 1193182
@@ -144,4 +145,11 @@ pit_set_freq:
 
     pop edx
     pop ebx
+    ret
+
+; Send EOI
+pit_send_eoi:    
+    push IRQ0
+    call pic_send_eoi
+    add esp, 4
     ret

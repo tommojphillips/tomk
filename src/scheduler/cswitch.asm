@@ -9,7 +9,7 @@ BITS 32
 ;%define CSWITCH_DBG 1
 
 extern scheduler_switch      ; scheduler.c
-extern pic_send_eoi          ; pic.asm
+extern pit_send_eoi          ; pit.asm
 
 %ifdef CSWITCH_DBG
 extern scheduler_debug_cswitch_save
@@ -74,10 +74,8 @@ cswitch_handler:
     pusha
     mov ebp, esp
 
-    ; send EOI
-    push 0
-    call pic_send_eoi
-    add esp, 4
+    ; Send EOI
+    call pit_send_eoi
 
     ; scheduler_switch(&current, &next)
     ; create storage for 2 pointers
