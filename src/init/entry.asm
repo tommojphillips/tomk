@@ -34,11 +34,33 @@ global _start
 %include "src\mm\include\paging.inc"
 %include "src\init\include\mb.inc"
 
+; %1: section start 
+; %2: section end 
+; %3: flags
+; %4: physical start
+; %5: virtual start
+%macro map_section 5
+    ; compute section size
+    mov edx, %2
+    sub edx, %1                                  ; compute size
+    add edx, PAGE_SIZE-1                         ; page align end address
+    shr edx, 12                                  ; get page count
+
+    ; map section (KVIRT+1MB)
+    push edx                                     ; page count
+    push %3                                      ; flags
+    push %4                                      ; physical address
+    push %5                                      ; virtual address
+    call map                                     ; map section (KVIRT)
+    add esp, 16
+%endmacro
+
 section .bss
     mb_info_ptr dd ?    
 
 section .boot progbits alloc exec nowrite
 
+; Kernel Entrypoint
 _start:
     cmp eax, 0x2BADB002                          ; multiboot v1 ?
     jnz .unk
@@ -72,148 +94,67 @@ _start:
     jnz .lp
 
 .setup_recursive_mapping:
+    ; PD/PT recursive mapping
     mov eax, V2P(pg_pd)
     or eax, (RW | P)
     mov [V2P(pg_pd)+1023*4], eax
 
-.map_1mb:
+.map_sections:
+    
     ; map first 1MB to KVIRT
-    push 256-1                                   ; page count
-    push RW                                      ; flags
-    push 0x00001000                              ; physical address
-    push 0x00001000+KVIRT                        ; virtual address
-    call map                                     ; map first 1MB to KVIRT
-    add esp, 16
+    map_section 0x1000, 0x100000, RW, 0x1000, P2V(0x1000)
 
-.map_text:
-    ; compute .text section size
-    mov edx, sec_text_end
-    sub edx, sec_text_start                      ; compute size
-    add edx, PAGE_SIZE-1                         ; page align end address
-    shr edx, 12                                  ; get page count
+    ; map .text section (KVIRT+1MB)
+    map_section sec_text_start, sec_text_end, RO, V2P(sec_text_start), sec_text_start
+    
+    ; map .rodata section (KVIRT+1MB)
+    map_section sec_rodata_start, sec_rodata_end, RO, V2P(sec_rodata_start), sec_rodata_start
 
-    ; map .text section (KVIRT+1MB) (Read-Only)
-    push edx                                     ; page count
-    push RO                                      ; flags
-    push V2P(sec_text_start)                     ; physical address
-    push sec_text_start                          ; virtual address
-    call map                                     ; map .text section (KVIRT)
-    add esp, 16
+    ; map .data section (KVIRT+1MB)
+    map_section sec_data_start, sec_data_end, RW, V2P(sec_data_start), sec_data_start
 
-.map_rodata:
-    ; compute .rodata section size
-    mov edx, sec_rodata_end
-    sub edx, sec_rodata_start                    ; compute size
-    add edx, PAGE_SIZE-1                         ; page align end address
-    shr edx, 12                                  ; get page count  
+    ; map .bss section (KVIRT+1MB)
+    map_section sec_bss_start, sec_bss_end, RW, V2P(sec_bss_start), sec_bss_start
 
-    ; map .rodata section (KVIRT+1MB) (Read-Only)
-    push edx                                     ; page count
-    push RO                                      ; flags
-    push V2P(sec_rodata_start)                   ; physical address
-    push sec_rodata_start                        ; virtual address
-    call map                                     ; map .rodata section (KVIRT)
-    add esp, 16
-
-.map_data:
-    ; compute .data section size
-    mov edx, sec_data_end
-    sub edx, sec_data_start                      ; compute size
-    add edx, PAGE_SIZE-1                         ; page align end address
-    shr edx, 12                                  ; get page count  
-
-    ; map .data section (KVIRT+1MB) (Read-Write)
-    push edx                                     ; page count
-    push RW                                      ; flags
-    push V2P(sec_data_start)                     ; physical address
-    push sec_data_start                          ; virtual address
-    call map                                     ; map .data section (KVIRT)
-    add esp, 16
-
-.map_bss:
-    ; compute .bss section size
-    mov edx, sec_bss_end
-    sub edx, sec_bss_start                       ; compute size
-    add edx, PAGE_SIZE-1                         ; page align end address
-    shr edx, 12                                  ; get page count  
-
-    ; map .bss section (KVIRT+1MB) (Read-Write)
-    push edx                                     ; page count
-    push RW                                      ; flags
-    push V2P(sec_bss_start)                      ; physical address
-    push sec_bss_start                           ; virtual address
-    call map                                     ; map .bss section (KVIRT)
-    add esp, 16
-
-.map_boot:
-    ; compute .boot section size
-    mov edx, sec_boot_end
-    sub edx, sec_boot_start                      ; compute size
-    add edx, PAGE_SIZE-1                         ; page align end address
-    shr edx, 12                                  ; get page count
-
-    ; map .boot section (1MB identity) (Read-Only)
-    push edx                                     ; page count
-    push RO                                      ; flags
-    push sec_boot_start                          ; physical address
-    push sec_boot_start                          ; virtual address
-    call map                                     ; map .boot section (identity)
-    add esp, 16
+    ; map .boot section (identity)
+    map_section sec_boot_start, sec_boot_end, RO, sec_boot_start, sec_boot_start
 
 .enter_higher_half:
+
+    lea ecx, [cs:kernel_init]
 
     ; load CR3
     mov eax, V2P(pg_pd)                          ; load physical address of page directory in CR3
     mov cr3, eax
     
-    ; Enable PG + WP
+    ; enable PG + WP
     mov eax, cr0
     or eax, (BIT_PG | BIT_WP)
     mov cr0, eax
 
     ; jump into the higher-half kernel
-    lea eax, [cs:kernel_init]
-    jmp eax
-
-; located PDE
-; esp+4 = virtual_address
-; Returns pointer to PDE
-loc_pde:
-    mov eax, [esp+4]                             ; virtual_address
-    shr eax, 22                                  ; compute pd_index
-    lea eax, [V2P(pg_pd)+eax*4]                  ; pd_base + pd_index * 4
-    ret
-
-; located PTE
-; esp+4 = virtual_address
-; Returns pointer to PTE
-loc_pte:
-    mov ecx, [esp+4]                             ; virtual_address
-    mov eax, ecx                                 ; compute pt_index
-    shr eax, 12
-    and eax, 0x3FF                               ; pt_index = (virtual_address >> 12) & 0x3FF
-    shr ecx, 10                                  ; compute pt_offset
-    and ecx, 0xFFFFF000                          ; pt_offset = ((virtual_address >> 10) & 0xFFFFF000)
-    lea eax, [V2P(pg_pt)+ecx+eax*4]              ; pt_base + pt_offset + pt_index * 4
-    ret
+    jmp ecx
 
 ; map single page
-; esp+4  = virtual_address
-; esp+8  = physical_address
-; esp+12 = flags (lower 12bits)
+; ebp+8  = virtual_address
+; ebp+12 = physical_address
+; ebp+16 = flags (lower 12bits)
 _map:
+    push ebp
+    mov ebp, esp
+
     push ebx
     push esi
     push edi
 
-    mov esi, [esp+12+4]                          ; virtual_address
-    mov edi, [esp+12+8]                          ; physical_address
-    mov ebx, [esp+12+12]                         ; flags
+    mov esi, [ebp+8]                             ; virtual_address
+    mov edi, [ebp+12]                            ; physical_address
+    mov ebx, [ebp+16]                            ; flags
 
 .loc_pde:
-    push esi                   
-    call loc_pde                                 ; get PDE pointer in EAX
-    add esp, 4
+    mov eax, esi
+    shr eax, 22                                  ; pd_index = (virtual_address >> 22)
+    lea eax, [V2P(pg_pd)+eax*4]                  ; pd_base + pd_index * 4
 
     test dword [eax], P                          ; pde present?
     jnz .loc_pte                                 ; yes, skip building pde
@@ -227,9 +168,13 @@ _map:
     mov [eax], ecx                               ; write pde
 
 .loc_pte:
-    push esi
-    call loc_pte                                 ; get PTE pointer in EAX
-    add esp, 4
+    mov eax, esi
+    shr eax, 12
+    and eax, 0x3FF                               ; pt_index = (virtual_address >> 12) & 0x3FF
+    mov ecx, esi
+    shr ecx, 10
+    and ecx, 0xFFFFF000                          ; pt_offset = ((virtual_address >> 10) & 0xFFFFF000)
+    lea eax, [V2P(pg_pt)+ecx+eax*4]              ; pte = (pt_base + pt_offset + pt_index * 4)
 
 .build_pte:
     mov ecx, edi                                 ; physical_address
@@ -243,33 +188,33 @@ _map:
     pop edi
     pop esi
     pop ebx
+    leave
     ret
 
 ; map contiguous pages
-; esp+4  = virtual_address
-; esp+8  = physical_address
-; esp+12 = flags (lower 12bits)
-; esp+16 = count (in 4096-byte units)
+; ebp+8  = virtual_address
+; ebp+12  = physical_address
+; ebp+16 = flags (lower 12bits)
+; ebp+20 = count (in 4096-byte units)
 map:
-    push ebp                                     ; save ebp
-    mov ebp, esp                                 ; save frame ptr
-    add ebp, 4                                   ; point frame ptr at params-4
+    push ebp
+    mov ebp, esp
 
-    cmp dword [ebp+16], 0                        ; count == zero?
+    cmp dword [ebp+20], 0                        ; count == zero?
     jz .done                                     ; yes, dont map any pages
 
 .nxt:
-    push dword [ebp+12]                          ; flags (lower 12bits)
-    push dword [ebp+8]                           ; physical_address
-    push dword [ebp+4]                           ; virtual_address
+    push dword [ebp+16]                          ; flags (lower 12bits)
+    push dword [ebp+12]                          ; physical_address
+    push dword [ebp+8]                           ; virtual_address
     call _map                                    ; map page
     add esp, 12
 
-    add dword [ebp+4], PAGE_SIZE                 ; virtual_address += 4096
-    add dword [ebp+8], PAGE_SIZE                 ; physical_address += 4096
-    dec dword [ebp+16]                           ; count -= 1        
+    add dword [ebp+8], PAGE_SIZE                 ; virtual_address += 4096
+    add dword [ebp+12], PAGE_SIZE                ; physical_address += 4096
+    dec dword [ebp+20]                           ; count -= 1        
     jnz .nxt                                     ; count > 0?
 
 .done:
-    pop ebp                                      ; restore ebp
+    leave
     ret
