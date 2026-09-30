@@ -234,7 +234,7 @@ static int kshell_command_echo(void* userparam) {
 }
 static int kshell_command_mem(void* userparam) {
 	(void)userparam;
-	kdprint("MEMORY\n");
+	kprint("MEMORY\n");
 	print_memory_stats(0);
 	return 0; /* Success */
 }
@@ -245,25 +245,25 @@ static int kshell_command_ver(void* userparam) {
 }
 static int kshell_command_input_print(void* userparam) {
 	(void)userparam;
-	kdprint("INPUT PRINT\n");
+	kprint("INPUT PRINT\n");
 	print_input();
 	return 0; /* Success */
 }
 static int kshell_command_reboot(void* userparam) {
 	(void)userparam;
-	kdprint("REBOOT\n");
+	kprint("REBOOT\n");
 	ps2_cpu_reset();
 	return 0; /* Success */
 }
 static int kshell_command_alloctestk(void* userparam) {
 	(void)userparam;
-	kdprint("ALLOC TEST\n");
+	kprint("ALLOC TEST\n");
 	alloctestk();
 	return 0; /* Success */
 }
 static int kshell_command_alloctestu(void* userparam) {
 	(void)userparam;
-	kdprint("ALLOC TEST\n");
+	kprint("ALLOC TEST\n");
 	alloctestu();
 	return 0; /* Success */
 }
