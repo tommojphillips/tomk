@@ -257,7 +257,7 @@ static heap_block_t* block_find_free(heap_t* heap, size_t size, unsigned int con
             }
 
             /* Contiguous requirement? */
-            if (contiguous != (region->flags & REGION_CONTIGUOUS)) {
+            if ((contiguous != 0) != ((region->flags & REGION_CONTIGUOUS) != 0)) {
                 continue;
             }
 
