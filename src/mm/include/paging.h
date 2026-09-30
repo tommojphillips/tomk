@@ -28,6 +28,18 @@
 
 #define PTE_US          0x04 /* User/Super */
 
+#define PTE_A           0x20 /* Accessed */
+#define PTE_D           0x40 /* Dirty */
+
+typedef uint32_t page_directory_entry_t;
+typedef uint32_t page_table_entry_t;
+
+/* Kernel page directory */
+extern page_directory_entry_t pg_pd[1024];
+
+/* Kernel page table */
+extern page_table_entry_t pg_pt[1024*1024];
+
 /* Invalidate all pages */
 extern void pg_flush(void);
 

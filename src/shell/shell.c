@@ -427,52 +427,198 @@ static void alloctestu(void) {
 #define PD_VIRT() ((uint32_t*)0xFFFFF000)
 #define PT_VIRT(pd_idx) ((uint32_t*)(0xFFC00000 + ((pd_idx) << 12)))
 
-static void print_paging(void) {
-	/* PD are valid through the recursive mapping */
-	uint32_t* pdv = (uint32_t*)0xFFFFF000;
+static void print_page_directory(page_directory_entry_t* pd, uint32_t group_flag_mask, uint32_t output_flag_mask) {
+	int start_index = 0;
+	int count = 0;
+	uint32_t start_frame = pd[start_index] & 0xFFFFF000;
+	uint32_t start_flags = pd[start_index] & group_flag_mask;
+	int i = start_index;
 
-	for (int i = 0; i < 1023; i++) {
-		if (pdv[i] == 0) {
+	kprint("Page directory:\n| index | frame      | count | access |\n");
+	for (; i < 1024; i++) {
+		uint32_t frame = pd[i] & 0xFFFFF000;
+		uint32_t flags = pd[i] & group_flag_mask;
+		
+		if (start_frame + count * PAGE_SIZE == frame && start_flags == flags) {
+			count++;
 			continue;
 		}
 
-		/* PT are valid through the recursive mapping */
-		uint32_t* ptv = (uint32_t*)(0xFFC00000 + ((uintptr_t)i << 12));
-
-		int start = 0;
-		int mapped = (ptv[0] != 0);
-
-		for (int j = 1; j <= 1024; j++) {
-			int next_mapped;
-
-			if (j < 1024) {
-				next_mapped = (ptv[j] != 0);
+		if (start_flags & output_flag_mask) {
+			kprint("| %5u | 0x%08X | %5u |", start_index, start_frame, count);
+			if (start_flags & PTE_P) {
+				kprint(" P ");
 			}
 			else {
-				next_mapped = !mapped;
+				kprint("NP ");
 			}
-
-			if (next_mapped == mapped) {
-				continue;
+			if (start_flags & PTE_RW) {
+				kprint("RW ");
 			}
-
-			if (!mapped) {
-				start = j;
-				mapped = next_mapped;
-				continue;
+			else {
+				kprint("RO ");
 			}
-
-			uintptr_t virt_start = ((uintptr_t)i << 22) + ((uintptr_t)start << 12);
-			uintptr_t virt_end = ((uintptr_t)i << 22) + ((uintptr_t)j << 12) - 1;
-			uintptr_t phys_start = (uintptr_t)(ptv[start] & 0xFFFFF000);
-			uintptr_t phys_end = (uintptr_t)((ptv[j-1] & 0xFFFFF000) + (PAGE_SIZE-1));
-			uint32_t flags = ptv[start] & 0xFFF;
-			size_t size = virt_end - virt_start + 1;
-
-			kprint("%08X-%08X -> %08X-%08X: %-10s %4u KB\n", virt_start, virt_end, phys_start, phys_end, (flags & PTE_RW) ? "RW" : "RO", size / KB);
-
-			start = j;
-			mapped = next_mapped;
+			if (start_flags & PTE_US) {
+				kprint("U  ");
+			}
+			else {
+				kprint(" S ");
+			}
+			if (start_flags & PTE_A) {
+				kprint("A ");
+			}
+			else {
+				kprint("  ");
+			}
+			if (start_flags & PTE_D) {
+				kprint("D ");
+			}
+			else {
+				kprint("  ");
+			}
+			kprint("|\n");
 		}
+
+		start_index = i;
+		start_frame = frame;
+		start_flags = flags;
+		count = 1;
 	}
+	
+	if (start_flags & output_flag_mask) {
+		kprint("| %5u | 0x%08X | %5u |", start_index, start_frame, count);
+		if (start_flags & PTE_P) {
+			kprint(" P ");
+		}
+		else {
+			kprint("NP ");
+		}
+		if (start_flags & PTE_RW) {
+			kprint("RW ");
+		}
+		else {
+			kprint("RO ");
+		}
+		if (start_flags & PTE_US) {
+			kprint("U  ");
+		}
+		else {
+			kprint(" S ");
+		}
+		if (start_flags & PTE_A) {
+			kprint("A ");
+		}
+		else {
+			kprint("  ");
+		}
+		if (start_flags & PTE_D) {
+			kprint("D ");
+		}
+		else {
+			kprint("  ");
+		}
+		kprint("|\n");
+	}
+	kprint("\n");
+}
+static void print_page_tables(page_table_entry_t* pt, uint32_t group_flag_mask, uint32_t output_flag_mask) {
+	int start_index = 0;
+	uint32_t start_frame = pt[start_index] & 0xFFFFF000;
+	uint32_t start_virt = 0;
+	uint32_t start_flags = pt[start_index] & group_flag_mask;
+	int count = 0;
+	int i = start_index;
+
+	kprint("Page tables:\n|  index  | virt       | frame      | count | access      |\n");
+	for (; i < 1024 * 1024; i++) {
+		uint32_t frame = pt[i] & 0xFFFFF000;
+		uint32_t flags = pt[i] & group_flag_mask;
+		
+		if (start_frame + count * PAGE_SIZE == frame && start_flags == flags) {
+			count++;
+			continue;
+		}
+
+		if (start_flags & output_flag_mask) {
+			kprint("| %7u | 0x%08X | 0x%08X | %5u |", start_index, start_virt, start_frame, count);
+			if (start_flags & PTE_P) {
+				kprint(" P ");
+			}
+			else {
+				kprint("NP ");
+			}
+			if (start_flags & PTE_RW) {
+				kprint("RW ");
+			}
+			else {
+				kprint("RO ");
+			}
+			if (start_flags & PTE_US) {
+				kprint("U  ");
+			}
+			else {
+				kprint(" S ");
+			}
+			if (start_flags & PTE_A) {
+				kprint("A ");
+			}
+			else {
+				kprint("  ");
+			}
+			if (start_flags & PTE_D) {
+				kprint("D ");
+			}
+			else {
+				kprint("  ");
+			}
+			kprint("|\n");
+		}
+		
+		start_index = i;
+		start_frame = frame;
+		start_virt += count * PAGE_SIZE;
+		start_flags = flags;
+		count = 1;
+	}
+
+	if (start_flags & output_flag_mask) {
+		kprint("| %7u | 0x%08X | 0x%08X | %5u |", start_index, start_virt, start_frame, count);
+		if (start_flags & PTE_P) {
+			kprint(" P ");
+		}
+		else {
+			kprint("NP ");
+		}
+		if (start_flags & PTE_RW) {
+			kprint("RW ");
+		}
+		else {
+			kprint("RO ");
+		}
+		if (start_flags & PTE_US) {
+			kprint("U  ");
+		}
+		else {
+			kprint(" S ");
+		}
+		if (start_flags & PTE_A) {
+			kprint("A ");
+		}
+		else {
+			kprint("  ");
+		}
+		if (start_flags & PTE_D) {
+			kprint("D ");
+		}
+		else {
+			kprint("  ");
+		}
+		kprint("|\n");
+	}
+	kprint("\n");
+}
+
+static void print_paging(void) {
+	print_page_directory(pg_pd, (PTE_P | PTE_RW | PTE_US), PTE_P);
+	print_page_tables(pg_pt, (PTE_P | PTE_RW | PTE_US), PTE_P);
 }
