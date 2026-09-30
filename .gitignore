@@ -5,6 +5,7 @@
 *.map
 *.o
 *.bxrc
+*.log
 
 obj/
 bin/
