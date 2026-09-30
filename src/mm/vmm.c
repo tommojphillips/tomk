@@ -203,14 +203,17 @@ int vmm_unreserve(vmm_t* vmm, void* virt, size_t count) {
 void vmm_free(vmm_t* vmm, void* virt, size_t count) {
     /* Contiguous virtual addresses; Arbitrary physical addresses */
 
+    /* Unreserve all virtual addresses */
     vmm_unreserve(vmm, virt, count);
-
-    /* Unmap and free each physical page independently */
+    
+    /* Unmap all virtual addresses */
+    pg_unmap((uintptr_t)virt, count);
+    
+    /* Free each physical page independently */
     for (size_t i = 0; i < count; i++) {
         uintptr_t virt_addr = (uintptr_t)virt + TO_ADDR(i);        
         uintptr_t phys_addr = pg_virt2phys(virt_addr);
         if (phys_addr != 0) {
-            pg_unmap(virt_addr, 1);
             pmm_free(phys_addr, 1);
         }
     }
