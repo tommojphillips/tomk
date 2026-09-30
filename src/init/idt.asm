@@ -138,7 +138,7 @@ exc_handler:
     call ex_fault_handler
     add esp, 8
 
-    add esp, 18*4                                ; pop state + frame
+    add esp, 17*4                                ; pop state + frame
     
     hlt
 
