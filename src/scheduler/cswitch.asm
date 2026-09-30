@@ -18,7 +18,7 @@ extern scheduler_debug_cswitch_load
 
 global cswitch_handler
 
-; interrupt frame struct
+; Interrupt frame struct
 struc FRAME
     ; PUSHA
     .edi    resd 1
@@ -40,7 +40,7 @@ struc FRAME
     .ss2    resd 1
 endstruc
 
-; context switch struct
+; Process context struct
 struc CTX
     .cr3    resd 1
 
@@ -72,17 +72,18 @@ section .text
 ; esp+8 = eflags
 cswitch_handler:
     pusha
+        
     mov ebp, esp
+    sub esp, 8
 
     ; Send EOI
     call pit_send_eoi
 
-    ; scheduler_switch(&current, &next)
-    ; create storage for 2 pointers
-    sub esp, 8
-    lea eax, [esp+0]                             ; current proc
-    lea edx, [esp+4]                             ; next proc
+    ; Create storage for 2 pointers
+    lea eax, [ebp-4]                             ; current proc
+    lea edx, [ebp-8]                             ; next proc
 
+    ; scheduler_switch(&current, &next)
     push edx                                     ; next proc
     push eax                                     ; current proc
     call scheduler_switch
@@ -92,36 +93,41 @@ cswitch_handler:
     jnz .switch
 
 .restore:
-    ; restore current proc
+    ; Restore current proc
     add esp, 8                                   ; cleanup the 2 pointers
-    popa    
+    popa
     iret
 
 .switch:
-
-    ; save current proc
-    push ebp                                     ; interrupt frame
-    push [esp+4]                                 ; current proc
+    ; Save current proc
+    push ebp                                     ; interrupt frame pointer
+    push [ebp-4]                                 ; current proc
     call cswitch_save
     add esp, 8
 
-    ; load next proc
-    push [esp+4]                                 ; next proc
+    ; Load next proc
+    push [ebp-8]                                 ; next proc
     call cswitch_load
-    ; DOESNT RETURN
+    ; !! DOES NOT RETURN !!
 
 ; Save context
-; esp+4 = context
-; esp+8 = interrupt frame
+; ebp+8  = process context pointer
+; ebp+12 = interrupt frame pointer
 cswitch_save:
-    mov edi, [esp+4]
-    mov esi, [esp+8]                             ; context
+    push ebp
+    mov ebp, esp
+
+    push esi
+    push edi
+
+    mov edi, [ebp+8]                             ; process context pointer
+    mov esi, [ebp+12]                            ; interrupt frame pointer
 
     ; context == NULL?
     test edi, edi
     jz .done
 
-    ; save interrupt frame 
+    ; Save interrupt frame 
     mov eax, [esi+FRAME.eflags]
     mov [edi+CTX.eflags], eax
 
@@ -131,12 +137,12 @@ cswitch_save:
     mov eax, [esi+FRAME.eip]
     mov [edi+CTX.eip], eax
     
-    ; user mode?
+    ; User mode switch?
     test [esi+FRAME.cs], 3
     jnz .user
 
 .kernel:
-    ; save kernel stack
+    ; Save kernel stack
     mov ax, ss
     mov [edi+CTX.ss], ax
 
@@ -146,7 +152,7 @@ cswitch_save:
     jmp .save
 
 .user:
-    ; save user stack
+    ; Save user stack
     mov ax, [esi+FRAME.ss2]
     mov [edi+CTX.ss], ax
 
@@ -154,7 +160,7 @@ cswitch_save:
     mov [edi+CTX.esp], ax
 
 .save:
-    ; save general registers
+    ; Save general registers
     mov eax, [esi+FRAME.eax]
     mov [edi+CTX.eax], eax
 
@@ -176,7 +182,7 @@ cswitch_save:
     mov eax, [esi+FRAME.edi]
     mov [edi+CTX.edi], eax
 
-    ; save data segment registers
+    ; Save data segment registers
     mov ax, es
     mov [edi+CTX.es], ax
     mov ax, ds
@@ -186,7 +192,7 @@ cswitch_save:
     mov ax, gs
     mov [edi+CTX.gs], ax
     
-    ; save cr3
+    ; Save cr3
     mov eax, cr3
     mov [edi+CTX.cr3], eax
 
@@ -198,11 +204,14 @@ cswitch_save:
 %endif
 
 .done:
+    pop edi
+    pop esi
+    leave
     ret
 
 ; Context switch
-; esp+4 = context
-; Does not RETURN!
+; esp+4 = process context pointer
+; !! DOES NOT RETURN !!
 cswitch_load:
     mov edi, [esp+4]                             ; context
 
@@ -213,33 +222,33 @@ cswitch_load:
     add esp, 4
 %endif
 
-    ; load cr3
+    ; Load cr3
     mov eax, [edi+CTX.cr3]
     mov cr3, eax
 
-    ; user mode switch?
+    ; User mode switch?
     test [edi+CTX.cs], 3
     jnz .user
 
 .kernel:
-    ; load kernel stack
+    ; Load kernel stack
     mov ax, [edi+CTX.ss]
     mov ss, ax
     mov esp, [edi+CTX.esp]
-    jmp .frame
+    jmp .load
 
 .user:
-    ; build privilege level transition interrupt frame
+    ; Build privilege level transition interrupt frame
     push [edi+CTX.ss]
     push [edi+CTX.esp]
 
-.frame:
-    ; build interrupt frame
+.load:
+    ; Build interrupt frame
     push [edi+CTX.eflags]
     push [edi+CTX.cs]
     push [edi+CTX.eip]
 
-    ; load data segment registers
+    ; Load data segment registers
     mov ax, [edi+CTX.es]
     mov es, ax
     mov ax, [edi+CTX.ds]
@@ -249,7 +258,7 @@ cswitch_load:
     mov ax, [edi+CTX.gs]
     mov gs, ax
 
-    ; load general registers
+    ; Load general registers
     mov eax, [edi+CTX.eax]
     mov ecx, [edi+CTX.ecx]
     mov edx, [edi+CTX.edx]
@@ -258,5 +267,5 @@ cswitch_load:
     mov esi, [edi+CTX.esi]
     mov edi, [edi+CTX.edi]
 
-    ; load eip, cs, eflags, (user mode transition: ss, esp)
+    ; Load eip, cs, eflags, (user mode transition: ss, esp)
     iret
