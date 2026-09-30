@@ -315,6 +315,7 @@ static int kshell_command_proctest(void* userparam) {
 	(void)userparam;
 	extern void proctest(void);
 	proctest();
+	return 0; /* Success */
 }
 static void print_memory_stats(int c) {
 	size_t pm_usable = pmm_get_usable();
