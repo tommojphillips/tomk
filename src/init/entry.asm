@@ -53,6 +53,24 @@ _start:
 
 .bootstrap:
 
+.map_pd:
+    ; map all kernel PDE excluding the last pde, 1023
+    mov edi, (KVIRT>>22)                         ; first kernel PDE
+    mov ecx, 1023                                ; last kernel PDE
+    sub ecx, edi                                 ; 1023 - 768 = 255
+    
+.lp:
+    mov eax, edi
+    shl eax, 12
+    add eax, V2P(pg_pt)
+    or eax, (RW | P)
+    
+    mov [V2P(pg_pd)+edi*4], eax
+    
+    inc edi
+    dec ecx
+    jnz .lp
+
 .setup_recursive_mapping:
     mov eax, V2P(pg_pd)
     or eax, (RW | P)
