@@ -23,8 +23,9 @@ extern sec_boot_end                              ; linker.ld
 extern pg_unmap                                  ; paging.asm
 extern pg_invalidate                             ; paging.asm
 
+extern khang                                     ; khang.asm
+
 global kernel_init
-global khang
 global kstack_base
 global kstack_top
 
@@ -36,8 +37,6 @@ section .bss
 kstack_base:
     resb 1024*1024
 kstack_top:
-section .rodata
-    hang_str db "FATAL: HANG at EIP 0x%8.8X", 0
 
 section .text
 
@@ -75,16 +74,3 @@ kernel_init:
 
     call kmain                                   ; call into the c entry point
     call khang                                   ; hang
-
-; Kernel hang; hang system indefinitely
-; DOES NOT RETURN!
-khang:
-    dec [esp+0]
-    push hang_str                                ; print hang msg
-    call kdprintf
-    add esp, 4
-
-.hang:
-    cli
-    hlt
-    jmp .hang

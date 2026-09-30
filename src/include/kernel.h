@@ -11,7 +11,4 @@ extern uintptr_t kstack_base;
 /* Kernel stack top */
 extern uintptr_t kstack_top;
 
-/* Hang system */
-void khang(void);
-
 #endif
