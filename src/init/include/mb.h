@@ -111,7 +111,7 @@ typedef struct multiboot_mmap_t {
     uint32_t type;  /* 1 = available RAM */
 } multiboot_mmap_t;
 
-typedef struct kmmap_t kmmap_t;
-void mb_init(kmmap_t* kmmap);
+typedef struct _kphysmap kphysmap_t;
+void mb_init(kphysmap_t* map);
 
 #endif

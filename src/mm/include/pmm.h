@@ -11,11 +11,11 @@
 #include <stddef.h>
 
 /* Kernel Memory Map */
-typedef struct kmmap_t kmmap_t;
+typedef struct _kphysmap kphysmap_t;
 
 /* Initialize pmm 
- kmmap: The kmmap */
-void pmm_init(const kmmap_t* kmmap);
+ kmmap: kphysmap */
+void pmm_init(const kphysmap_t* map);
 
 /* Allocate contiguous pages
  count: requested page count

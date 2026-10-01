@@ -12,7 +12,7 @@
 
 extern multiboot_info_t* mb_info_ptr; /* entry.asm */
 
-void mb_init(kmmap_t* kmmap) {
+void mb_init(kphysmap_t* map) {
 	assert(mb_info_ptr != NULL);
 	assert(mb_info_ptr->flags & MULTIBOOT_FLAGS_MMAP);
 
@@ -23,10 +23,10 @@ void mb_init(kmmap_t* kmmap) {
 		uint64_t len = ((uint64_t)mmap->len2 << 32) | (uint64_t)mmap->len1;
 		
 		if (mmap->type == MULTIBOOT_MMAP_TYPE_RAM) {
-			kphysmap_add(kmmap, addr, len, KPHYSREGION_TYPE_RAM);
+			kphysmap_add(map, addr, len, KPHYSREGION_TYPE_RAM);
 		}
 		else {
-			kphysmap_add(kmmap, addr, len, KPHYSREGION_TYPE_REV);
+			kphysmap_add(map, addr, len, KPHYSREGION_TYPE_REV);
 		}
 		
 		mmap = (multiboot_mmap_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));
