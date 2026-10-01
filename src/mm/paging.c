@@ -10,11 +10,12 @@
 #include <pmm.h>
 #include <vmm.h>
 #include <paging.h>
+#include <mman.h>
+
 #include <kspacedef.h>
 #include <assert.h>
 
 uintptr_t pgd_create_pd(void) {
-    extern vmm_t kvmm;
     
     /* Allocate a physical frame for the new page directory */
     uintptr_t pd_phys = pmm_alloc(1);
@@ -22,14 +23,12 @@ uintptr_t pgd_create_pd(void) {
         return 0;
     }
 
-    /* Reserve a page in the vmm for setting up the new page 
-     directory, map the new pd physical address */
-    uint32_t* pd_virt = vmm_reserve(&kvmm, 1);
-    if (pd_virt == 0) {
+    /* Map the new page directory */
+    uint32_t* pd_virt = mmap(NULL, pd_phys, 0x1000, PTE_RW);
+    if (pd_virt == NULL) {
         pmm_free(pd_phys, 1);
         return 0;
     }
-    pg_map((uintptr_t)pd_virt, pd_phys, PTE_RW, 1);
 
     /* Map all kernel page tables into the new page directry */
     for (size_t i = PD_IDX(KVIRT); i < PD_IDX(KVIRT_END); i++) {
@@ -39,9 +38,8 @@ uintptr_t pgd_create_pd(void) {
     /* Map recursive PD */
     pd_virt[1023] = pd_phys | PTE_RW | PTE_P;
 
-    /* free/unmap temp page */
-    pg_unmap((uintptr_t)pd_virt, 1);
-    vmm_unreserve(&kvmm, pd_virt, 1);
+    /* Unmap temp page */
+    munmap(pd_virt, 0x1000);
 
     return pd_phys;
 }
