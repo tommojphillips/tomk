@@ -118,7 +118,7 @@ uintptr_t pmm_alloc(size_t count) {
     /* Multiple pages have been requested. Figure out were the next contiguous block of physical pages are */
     uintptr_t start = pmm_find_contiguous_pages(count);
     if (start == 0) {
-        kprint("[PMM] fragmentation error: %u (avail=%u largest_run=%u)\n", count, pmm.free_pages, pmm.largest_run);
+        kprint("[PMM] Fragmentation error: %u (avail=%u largest_run=%u)\n", count, pmm.free_pages, pmm.largest_run);
         return 0;
     }
 
@@ -141,7 +141,7 @@ void pmm_free(uintptr_t phys, size_t count) {
     
     /* Physical address must be page aligned */
     if (phys & (PAGE_SIZE - 1)) {
-        kprint("[PMM] error mis-aligned page: %8.8X\n", phys);
+        kprint("[PMM] Error mis-aligned page: %8.8X\n", phys);
         return;
     }
     
@@ -149,7 +149,7 @@ void pmm_free(uintptr_t phys, size_t count) {
 
     /* Page must be managed by PMM */
     if (page >= pmm.total_pages || count > pmm.total_pages - page) {
-        kprint("[PMM] error address out of bounds: %8.8X\n", phys);
+        kprint("[PMM] Error address out of bounds: %8.8X\n", phys);
         return;
     }
 
@@ -184,7 +184,7 @@ void pmm_mark_free(uintptr_t phys, size_t size) {
         }
     }
 
-    kdprint("[PMM] mark free: %08X-%08X\n", start, end);
+    kdprint("[PMM] Mark free: %08X-%08X\n", start, end);
 }
 void pmm_mark_used(uintptr_t phys, size_t size) {    
     if (phys > pmm.memory_end) {
@@ -208,7 +208,7 @@ void pmm_mark_used(uintptr_t phys, size_t size) {
         }
     }
 
-    kdprint("[PMM] mark used: %08X-%08X\n", start, end);
+    kdprint("[PMM] Mark used: %08X-%08X\n", start, end);
 }
 
 size_t pmm_get_free(void) {
