@@ -57,16 +57,3 @@ void kmain(void) {
 	kprint("Unloading kinit_proc...\n");
 	scheduler_unload_kprocess(scheduler_current(), 1);
 }
-
-void kpanic(const char* fmt, ...) {
-	const char* panic_str = "\nKERNEL PANIC\n";
-	va_list args;
-    va_start(args, fmt);
-	fprintf(STDIO, panic_str);
-	vfprintf(STDIO, fmt, args);
-	fprintf(SERIAL, panic_str);
-	vfprintf(SERIAL, fmt, args);
-    va_end(args);
-
-	khang();
-}
