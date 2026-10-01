@@ -59,7 +59,7 @@ heap_t kheap;
 kphysmap_t kphysmap;
 
 void mminit(void) {
-	/* Init kernel memory stack ( PMM -> VMM -> HEAP )*/
+	/* Init kernel memory stack ( PMM -> VMM -> HEAP ) */
 	uintptr_t kbase = 0;
 	uintptr_t kend = 0;
 	uintptr_t ksize = 0;
@@ -94,11 +94,13 @@ void mminit(void) {
 	kinit_alloc_end = kinit_alloc_get_next();
 	kinit_alloc_size = ALIGN(uintptr_t, (kinit_alloc_end - kinit_alloc_base), PAGE_SIZE);
 	
-	pmm_mark_used(0x00001000, 0xFF000);                       /* Mark first 1MB buffer used */
+	/* Mark kernel pages used in PMM */
+	pmm_mark_used(0x00000000, 0x100000);                      /* Mark first 1MB used */
 	pmm_mark_used(V2P(kbase), ksize);                         /* Mark kernel image used */
 	pmm_mark_used(V2P(kinit_alloc_base), kinit_alloc_size);   /* Mark kinit_alloc allocations used */
     
-	vmm_mark_used(&kvmm,  P2V(0x00000000), 0x100000);         /* Mark first 1MB buffer used */
+	/* Mark kernel pages used in KVMM */
+	vmm_mark_used(&kvmm,  P2V(0x00000000), 0x100000);         /* Mark first 1MB used */
 	vmm_mark_used(&kvmm, kbase, ksize);                       /* Mark kernel image used */
 	vmm_mark_used(&kvmm, kinit_alloc_base, kinit_alloc_size); /* Mark kinit_alloc allocations used */
 
