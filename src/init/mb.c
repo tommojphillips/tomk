@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 #include <mb.h>
-#include <kmmap.h>
+#include <kphysmap.h>
 #include <assert.h>
 #include <kspacedef.h>
 
@@ -16,16 +16,17 @@ void mb_init(kmmap_t* kmmap) {
 	assert(mb_info_ptr != NULL);
 	assert(mb_info_ptr->flags & MULTIBOOT_FLAGS_MMAP);
 
-	multiboot_mmap_t* mmap = (multiboot_mmap_t*)(P2V(mb_info_ptr->mmap_addr));
-	while ((uintptr_t)mmap < P2V(mb_info_ptr->mmap_addr) + mb_info_ptr->mmap_length) {
-		uint64_t addr = ((uint64_t)mmap->addr2 << 32) |  (uint64_t)mmap->addr1;
-		uint64_t len = ((uint64_t)mmap->len2 << 32) |  (uint64_t)mmap->len1;
+	uintptr_t addr = P2V(mb_info_ptr->mmap_addr);
+	multiboot_mmap_t* mmap = (multiboot_mmap_t*)addr;
+	while ((uintptr_t)mmap < addr + mb_info_ptr->mmap_length) {
+		uint64_t addr = ((uint64_t)mmap->addr2 << 32) | (uint64_t)mmap->addr1;
+		uint64_t len = ((uint64_t)mmap->len2 << 32) | (uint64_t)mmap->len1;
 		
 		if (mmap->type == MULTIBOOT_MMAP_TYPE_RAM) {
-			kmmap_add(kmmap, addr, len, KMREGION_TYPE_RAM);
+			kphysmap_add(kmmap, addr, len, KPHYSREGION_TYPE_RAM);
 		}
 		else {
-			kmmap_add(kmmap, addr, len, KMREGION_TYPE_REV);
+			kphysmap_add(kmmap, addr, len, KPHYSREGION_TYPE_REV);
 		}
 		
 		mmap = (multiboot_mmap_t*)((uintptr_t)mmap + mmap->size + sizeof(mmap->size));

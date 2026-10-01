@@ -8,7 +8,7 @@
 #include <string.h>
 
 #include <pmm.h>
-#include <kmmap.h>
+#include <kphysmap.h>
 #include <kinit_alloc.h>
 #include <align.h>
 #include <paging.h>
@@ -41,28 +41,28 @@ static int pmm_test(uintptr_t phys);
 static uintptr_t pmm_alloc_one(void);
 static uintptr_t pmm_find_contiguous_pages(size_t count);
 
-void pmm_init(const kmmap_t* kmmap) {
-    assert(kmmap != NULL);
-    assert(kmmap->count > 0);
+void pmm_init(const kphysmap_t* map) {
+    assert(map != NULL);
+    assert(map->count > 0);
     
     /* Find the highest usable physical address */
     pmm.memory_end = 0;
     pmm.usable_pages = 0;
-    for (size_t i = 0; i < kmmap->count; ++i) {
-        if (!(kmmap->regions[i].flags & KMREGION_VALID)) {
+    for (size_t i = 0; i < map->count; ++i) {
+        if (!(map->regions[i].flags & KPHYSREGION_VALID)) {
             continue;
         }
-        if ((kmmap->regions[i].flags & KMREGION_TYPE_MASK) != KMREGION_TYPE_RAM) {
+        if ((map->regions[i].flags & KPHYSREGION_TYPE_MASK) != KPHYSREGION_TYPE_RAM) {
             continue;
         }
         
-        uintptr_t end = kmmap->regions[i].address + kmmap->regions[i].size;
+        uintptr_t end = map->regions[i].address + map->regions[i].size;
 
         if (end > pmm.memory_end) {
             pmm.memory_end = end;
         }
 
-        uintptr_t start_page = ALIGN(uintptr_t, kmmap->regions[i].address, PAGE_SIZE);
+        uintptr_t start_page = ALIGN(uintptr_t, map->regions[i].address, PAGE_SIZE);
         uintptr_t end_page = end & ~(uintptr_t)(PAGE_SIZE - 1);
 
         if (end_page > start_page) {
@@ -83,19 +83,19 @@ void pmm_init(const kmmap_t* kmmap) {
     /* Mark all physical addresses used */
     memset(pmm.bitmap, 0xFF, pmm.bitmap_size);
     
-    /* Find all usable RAM regions in kmmap and mark those pages free in PMM */
-    for (size_t i = 0; i < kmmap->count; ++i) {
-        if (!(kmmap->regions[i].flags & KMREGION_VALID)) {
+    /* Find all usable RAM regions in map and mark those pages free in PMM */
+    for (size_t i = 0; i < map->count; ++i) {
+        if (!(map->regions[i].flags & KPHYSREGION_VALID)) {
             continue;
         }
-        if ((kmmap->regions[i].flags & KMREGION_TYPE_MASK) != KMREGION_TYPE_RAM) {
+        if ((map->regions[i].flags & KPHYSREGION_TYPE_MASK) != KPHYSREGION_TYPE_RAM) {
             continue;
         }
         
-        pmm_mark_free(kmmap->regions[i].address, kmmap->regions[i].size);
+        pmm_mark_free(map->regions[i].address, map->regions[i].size);
     }
 
-    /* zero page */
+    /* Mark zero page used */
     pmm_mark_used(0x00000000, 0x1000);
 }
 

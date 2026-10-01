@@ -39,7 +39,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <kmmap.h>
+#include <kphysmap.h>
 #include <kheap.h>
 #include <kinit_alloc.h>
 #include <pmm.h>
@@ -56,6 +56,7 @@
 /* Kernel virtual Memory Manager */
 vmm_t kvmm;
 heap_t kheap;
+kphysmap_t kphysmap;
 
 void mminit(void) {
 	/* Init kernel memory stack ( PMM -> VMM -> HEAP )*/
@@ -65,22 +66,21 @@ void mminit(void) {
 	size_t kinit_alloc_size = 0;
 	uintptr_t kinit_alloc_base = 0;
 	uintptr_t kinit_alloc_end = 0;
-	kmmap_t kmmap = { 0 };
 
 	kbase = P2V((uintptr_t)&sec_kstart);
 	kend = ALIGN(uintptr_t, (uintptr_t)&sec_kend, PAGE_SIZE);
 
-	/* Init mmap */
-	kmmap_init(&kmmap);
+	/* Init physical memory map */
+	kphysmap_init(&kphysmap);
 	
-	/* Populate kmmap */
-	mb_init(&kmmap);
+	/* Populate physical memory map */
+	mb_init(&kphysmap);
 
 	/* Init kernel-init allocator */
 	kinit_alloc_init(kend, 0x00100000);
 
 	/* Init physical memory allocator */
-	pmm_init(&kmmap);
+	pmm_init(&kphysmap);
 
 	/* Init virtual memory allocator */
 	vmm_init(&kvmm, KVIRT, KVIRT_END, kinit_alloc);
