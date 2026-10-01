@@ -46,7 +46,7 @@ DLM          equ 1                               ; Divisor latch most significan
     in al, dx
 %endmacro
 
-section .text
+Section .text
 
 ; Serial init
 ; esp+4 = COM port

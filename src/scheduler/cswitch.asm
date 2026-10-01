@@ -64,7 +64,7 @@ struc CTX
     .eflags resd 1
 endstruc
 
-section .text
+Section .text
 
 ; Context switch interrupt handler
 ; esp+0 = eip

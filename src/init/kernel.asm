@@ -32,13 +32,13 @@ global kstack_top
 %include "src\include\kspacedef.inc"
 %include "src\mm\include\paging.inc"
 
-section .bss
+Section .bss
     align 16
 kstack_base:
     resb 1024*1024
 kstack_top:
 
-section .text
+Section .text
 
 ; kernel init
 kernel_init:

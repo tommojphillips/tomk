@@ -55,10 +55,10 @@ global _start
     add esp, 16
 %endmacro
 
-section .bss
+Section .bss
     mb_info_ptr dd ?    
 
-section .boot progbits alloc exec nowrite
+Section .boot progbits alloc exec nowrite
 
 ; Kernel Entrypoint
 _start:

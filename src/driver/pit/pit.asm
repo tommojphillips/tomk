@@ -32,13 +32,13 @@ PIT_PORT_2  equ 0x43
 %include "src\include\common.inc"
 
 %ifdef PIT_DBG
-section .rodata
+Section .rodata
     dbg_set_interval_str db "[PIT] set_freq clock=%u target=%uHz divisor=%u", 10, 0
     dbg_enable_str       db "[PIT] enable_timer", 10, 0
     dbg_set_handler_str  db "[PIT] set_handler handler=0x%08X", 10, 0
 %endif
 
-section .text
+Section .text
 
 pit_init:
 
