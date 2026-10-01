@@ -50,9 +50,8 @@ void* vmm_reserve(vmm_t* vmm, size_t count);
 
 /* Free non-backed virtual pages
  virt: Virtual page frame
- count: requested page count 
- Returns: pointer if successfull, otherwise NULL */
-int vmm_unreserve(vmm_t* vmm, void* virt, size_t count);
+ count: requested page count */
+void vmm_unreserve(vmm_t* vmm, void* virt, size_t count);
 
 /* Free backed virtual pages
  virt: Virtual page frame

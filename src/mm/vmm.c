@@ -166,26 +166,26 @@ void* vmm_alloc_contiguous(vmm_t* vmm, size_t count) {
     return virt;
 }
 
-int vmm_unreserve(vmm_t* vmm, void* virt, size_t count) {
+void vmm_unreserve(vmm_t* vmm, void* virt, size_t count) {
     /* Contiguous virtual addresses; Arbitrary physical addresses */
     assert(vmm != NULL);
 
     if (virt == NULL) {
-        return 1;
+        return;
     }
 
     if (count == 0) {
-        return 1;
+        return;
     }
 
     if ((uintptr_t)virt < vmm->base || (uintptr_t)virt >= vmm->end) {
         kprint("[VMM] Out of bounds error: %8.8X\n", (uintptr_t)virt);
-        return 0;
+        return;
     }
 
     if ((uintptr_t)virt & (PAGE_SIZE - 1)) {
         kprint("[VMM] Mis-aligned page error: %8.8X\n", (uintptr_t)virt);
-        return 0;
+        return;
     }
 
     /* Unreserve pages */
@@ -197,8 +197,6 @@ int vmm_unreserve(vmm_t* vmm, void* virt, size_t count) {
     /* Bookkeeping */
     vmm->free_pages += count;
     vmm->used_pages -= count;
-
-    return 1;
 }
 void vmm_free(vmm_t* vmm, void* virt, size_t count) {
     /* Contiguous virtual addresses; Arbitrary physical addresses */
