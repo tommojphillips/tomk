@@ -92,57 +92,57 @@ void proctest(void) {
 
 	/* Spin up proc_a process */
 	kprint("Starting proc_a...\n");
-	scheduler_load_kprocess(proc_a);
+	scheduler_load_kprocess("A", proc_a);
 
 	/* Spin up proc_b process */
 	kprint("Starting proc_b...\n");
-	scheduler_load_kprocess(proc_b);
+	scheduler_load_kprocess("B", proc_b);
 
 	/* Spin up proc_c process */
 	kprint("Starting proc_c...\n");
-	scheduler_load_kprocess(proc_c);
+	scheduler_load_kprocess("C", proc_c);
 
 	/* Spin up proc_d process */
 	kprint("Starting proc_d...\n");
-	scheduler_load_kprocess(proc_d);
+	scheduler_load_kprocess("D", proc_d);
 
 	/* Spin up proc_e process */
 	kprint("Starting proc_e..\n");
-	scheduler_load_kprocess(proc_e);
+	scheduler_load_kprocess("E", proc_e);
 
 	/* Spin up proc_f process */
 	kprint("Starting proc_f...\n");
-	scheduler_load_kprocess(proc_f);
+	scheduler_load_kprocess("F", proc_f);
 
 	/* Spin up proc_g process */
 	kprint("Starting proc_g...\n");
-	scheduler_load_kprocess(proc_g);
+	scheduler_load_kprocess("G", proc_g);
 
 	/* Spin up proc_h process */
 	kprint("Starting proc_h...\n");
-	scheduler_load_kprocess(proc_h);
+	scheduler_load_kprocess("H", proc_h);
 
 	/* Spin up proc_i process */
 	kprint("Starting proc_i...\n");
-	scheduler_load_kprocess(proc_i);
+	scheduler_load_kprocess("I", proc_i);
 
 	/* Spin up proc_j process */
 	kprint("Starting proc_j...\n");
-	scheduler_load_kprocess(proc_j);
+	scheduler_load_kprocess("J", proc_j);
 
 	/* Spin up proc_k process */
 	kprint("Starting proc_k...\n");
-	scheduler_load_kprocess(proc_k);
+	scheduler_load_kprocess("K", proc_k);
 
 	/* Spin up proc_l process */
 	kprint("Starting proc_l...\n");
-	scheduler_load_kprocess(proc_l);
+	scheduler_load_kprocess("L", proc_l);
 
 	/* Spin up proc_m process */
 	kprint("Starting proc_m...\n");
-	scheduler_load_kprocess(proc_m);
+	scheduler_load_kprocess("M", proc_m);
 
 	/* Spin up proc_n process */
 	kprint("Starting proc_n...\n");
-	scheduler_load_kprocess(proc_n);
+	scheduler_load_kprocess("N", proc_n);
 }

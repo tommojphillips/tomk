@@ -12,34 +12,31 @@
 
 /* Scheduler struct */
 typedef struct scheduler_t {
-    process_t* head;
-    process_t* tail;
-    process_t* current;
-    size_t count;
+    procman_t active;
+    procman_t inactive;
 } scheduler_t;
 
 /* Scheduler Initialize */
 void scheduler_init(void);
 
-/* Scheduler load kernel process  
- entry: Process entry point
- Returns: Loaded process */
-process_t* scheduler_load_kprocess(process_entry_fn_t entry);
-
-/* Scheduler unload kernel process 
- proc: The process to unload
- wait_self_destroy: If process is currently scheduled, spin until process is unloaded */
-void scheduler_unload_kprocess(process_t* proc, int wait_self_destroy);
+/* Scheduler load kernel process 
+ path:    Executable path   
+ entry:   Entry point
+ Returns: Inactive kernel process */
+process_t* scheduler_load_kprocess(const char* path, process_entry_fn_t entry);
 
 /* Scheduler load user process 
- entry: Process entry point
- Returns: Loaded process */
-process_t* scheduler_load_uprocess(process_entry_fn_t entry);
+ path: Executable path 
+ entry: Entry point
+ Returns: Inactive user process */
+process_t* scheduler_load_uprocess(const char* path, process_entry_fn_t entry);
 
-/* Scheduler unload user process 
- proc: The process to unload
- wait_self_destroy: If process is currently scheduled, spin until process is unloaded */
-void scheduler_unload_uprocess(process_t* proc, int wait_self_destroy);
+/* Scheduler unload process 
+ proc: The process to unload */
+void scheduler_unload_process(process_t* proc);
+
+/* Scheduler unload currently scheduled process */
+void scheduler_unload_current_process(void);
 
 /* Scheduler get current process  
  Returns: The currently scheduled process */

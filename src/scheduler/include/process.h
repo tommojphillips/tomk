@@ -22,7 +22,8 @@
  *                                                             | ----- Type (2 bits)
  *                                                             ------- Memory (1 bit)
  */
-#define PROC_FLAG_NONE         0
+
+#define PROC_FLAG_NONE         0    /* Process has no flags */
 #define PROC_FLAG_KERNEL       0x01 /* Process is executed in kernel mode */
 #define PROC_FLAG_USER         0x03 /* Process is executed in user mode */
 #define PROC_FLAG_STACK        0x04 /* Process has a stack */
@@ -31,7 +32,10 @@
 
 #define PROC_FLAG_TYPE_MASK    0x03
 
+#define PROC_FLAG_CREATE       0x20000000
+#define PROC_FLAG_KILL         0x40000000
 #define PROC_FLAG_ERROR        0x80000000
+#define PROC_FLAG_SERVICE_MASK 0xC0000000
 
 /* Process context */
 typedef struct context_t {
@@ -71,6 +75,7 @@ struct process_t {
     size_t id;
     process_entry_fn_t entry;
     uint32_t flags;
+    const char* path;
     vmm_t vmm;
     heap_t heap;
     void* exe;
@@ -80,6 +85,13 @@ struct process_t {
     process_t* next;
     process_t* prev;
 };
+
+typedef struct procman_t {
+    process_t* head;
+    process_t* tail;
+    process_t* current;
+    size_t count;
+} procman_t;
 
 /* Create process 
  proc: The process to create 

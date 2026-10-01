@@ -40,7 +40,7 @@ int process_update(process_t* proc) {
     }
     
     proc->ticks++;
-    if (proc->ticks < 9) {
+    if (proc->ticks < 2) {
         return 0; /* give process more time */
     }
     proc->ticks = 0;

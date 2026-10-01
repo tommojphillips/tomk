@@ -284,8 +284,12 @@ static int kshell_command_pagetables(void* userparam) {
 static int kshell_command_proc_list(void* userparam) {
 	(void)userparam;
 	process_t* head = scheduler_head();
+
+	kprint("\n" \
+		"| pid | path                 |\n" \
+		"| --- | -------------------- |\n");
 	for (process_t* proc = head; proc != NULL; proc = proc->next) {
-		kprintf("proc%u\n", proc->id);
+		kprint("| %03u | %-20s |\n", proc->id, proc->path);
 	}
 	return 0; /* Success */
 }
@@ -294,10 +298,12 @@ static int kshell_command_proc_kill(void* userparam) {
 	process_t* head = scheduler_head();
 	for (process_t* proc = head; proc != NULL; proc = proc->next) {
 		if (proc->id == id) {
-			scheduler_unload_kprocess(proc, 1);
+			scheduler_unload_process(proc);
+			kprint("Killing process: pid=%u\n", id);
 			return 0; /* Success */
 		}
 	}
+	kprint("Process not found: pid=%u\n", id);
 	return 1; /* Failure */
 }
 static int kshell_command_proc_fork(void* userparam) {
@@ -305,7 +311,7 @@ static int kshell_command_proc_fork(void* userparam) {
 	process_t* head = scheduler_head();
 	for (process_t* proc = head; proc != NULL; proc = proc->next) {
 		if (proc->id == id) {
-			scheduler_load_kprocess((process_entry_fn_t)proc->frame.eip);
+			scheduler_load_kprocess(proc->path, (process_entry_fn_t)proc->frame.eip);
 			return 0; /* Success */
 		}
 	}

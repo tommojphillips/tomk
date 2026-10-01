@@ -49,11 +49,14 @@ void kmain(void) {
 	/* Init scheduler */
 	scheduler_init();
 
-	/* Spin up kshell process */
-	kprint("Starting kshell...\n");
-	scheduler_load_kprocess(kshell);
+	/* Spin up .kshell proc */
+	kprint("Starting .kshell...\n");
+	scheduler_load_kprocess(".kshell", kshell);
 
 	/* Unload self */
-	kprint("Unloading kinit_proc...\n");
-	scheduler_unload_kprocess(scheduler_current(), 1);
+	kprint("Unloading .kinit...\n");
+	scheduler_unload_process(scheduler_current());
+
+	/* Wait until .kinit proc is unloaded */
+	halt();
 }
