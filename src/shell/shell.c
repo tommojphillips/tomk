@@ -10,7 +10,7 @@
 
 #include <pmm.h>
 #include <vmm.h>
-#include <kalloc.h>
+#include <kinit_alloc.h>
 #include <kheap.h>
 #include <kmalloc.h>
 #include <ps2.h>

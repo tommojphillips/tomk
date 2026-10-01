@@ -9,7 +9,7 @@
 
 #include <pmm.h>
 #include <kmmap.h>
-#include <kalloc.h>
+#include <kinit_alloc.h>
 #include <align.h>
 #include <paging.h>
 

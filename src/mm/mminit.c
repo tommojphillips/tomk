@@ -41,7 +41,7 @@
 
 #include <kmmap.h>
 #include <kheap.h>
-#include <kalloc.h>
+#include <kinit_alloc.h>
 #include <pmm.h>
 #include <vmm.h>
 #include <mb.h>

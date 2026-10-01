@@ -1,4 +1,4 @@
-/* kalloc.c
+/* kinit_alloc.c
  * Thomas J. Armytage 2026 ( https://github.com/tommojphillips/ )
  *
  * Bootstrap bump allocator.

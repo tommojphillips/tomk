@@ -11,7 +11,7 @@
 #include <vmm.h>
 #include <pmm.h>
 #include <paging.h>
-#include <kalloc.h>
+#include <kinit_alloc.h>
 #include <align.h>
 
 #include <assert.h>
