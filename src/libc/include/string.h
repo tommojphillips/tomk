@@ -18,4 +18,7 @@ int strncmp(const char* restrict s1, const char* restrict s2, size_t size);
 int stricmp(const char* restrict s1, const char* restrict s2);
 int strincmp(const char* restrict s1, const char* restrict s2, size_t size);
 
+size_t strspn(const char* dest, const char* src);
+size_t strcspn(const char* dest, const char* src);
+
 #endif
